@@ -415,6 +415,9 @@ const CharacterSettings = ({
   // isAutoDetectingAll, setIsAutoDetectingAll, autoDetectAbortRef are now props from Workspace
   const stopCostumeGenRef = useRef<Set<string>>(new Set()); // track which character IDs should stop costume gen
 
+  // Progress tracking for "全部生成"
+  const [autoDetectProgress, setAutoDetectProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
+
   // Clean up expired tasks periodically (safety net for long-running tasks)
   useEffect(() => {
     const interval = setInterval(() => {
@@ -538,6 +541,17 @@ const CharacterSettings = ({
     autoDetectAbortRef.current = false;
     setIsAbortingAutoDetect(false);
     setIsAutoDetectingAll(true);
+
+    // Calculate total tasks: per character = 1 desc + 1 base img + N costume imgs; per scene = 1 desc + 1 img
+    const totalCharTasks = charactersRef.current.filter(c => String(c.name || "").trim()).reduce((sum, c) => {
+      const costumeCount = c.costumes?.filter(cos => cos.label?.trim() && !cos.imageUrl).length || 0;
+      return sum + 2 + costumeCount; // desc + base img + costume imgs
+    }, 0);
+    const totalSceneTasks = sceneSettingsRef.current.filter(s => String(s.name || "").trim()).length * 2; // desc + img
+    const totalTasks = totalCharTasks + totalSceneTasks;
+    let doneCount = 0;
+    setAutoDetectProgress({ done: 0, total: totalTasks });
+    const bumpDone = () => { doneCount++; setAutoDetectProgress({ done: doneCount, total: totalTasks }); };
     const successCountRef = { current: 0 };
     const failCountRef = { current: 0 };
 
@@ -606,6 +620,7 @@ const CharacterSettings = ({
         setGeneratingCharDescIds((prev) => { const next = new Set(prev); next.delete(c.id); return next; });
         textSem.release();
       }
+      bumpDone();
       if (descOk) successCountRef.current++; else { failCountRef.current++; return; }
 
       // --- Image phase ---
@@ -640,6 +655,7 @@ const CharacterSettings = ({
         setGeneratingCharImgIds((prev) => { const next = new Set(prev); next.delete(c.id); return next; });
         imageSem.release();
       }
+      bumpDone();
       if (imgOk) successCountRef.current++; else failCountRef.current++;
 
       // --- Costume image phase: generate images for each costume variant ---
@@ -689,6 +705,7 @@ const CharacterSettings = ({
           setGeneratingCharImgIds((prev) => { const next = new Set(prev); next.delete(cosTaskKey); return next; });
           imageSem.release();
         }
+        bumpDone();
         if (cosImgOk) successCountRef.current++; else failCountRef.current++;
       }
     };
@@ -721,6 +738,7 @@ const CharacterSettings = ({
         setGeneratingDescIds((prev) => { const next = new Set(prev); next.delete(s.id); return next; });
         textSem.release();
       }
+      bumpDone();
       if (descOk) successCountRef.current++; else { failCountRef.current++; return; }
 
       // --- Image phase ---
@@ -755,6 +773,7 @@ const CharacterSettings = ({
         setGeneratingSceneImgIds((prev) => { const next = new Set(prev); next.delete(s.id); return next; });
         imageSem.release();
       }
+      bumpDone();
       if (imgOk) successCountRef.current++; else failCountRef.current++;
     };
 
@@ -835,7 +854,22 @@ const CharacterSettings = ({
         </div>
       </div>
 
-      {/* Art Style Selector */}
+      {/* Progress bar during batch generation */}
+      {isAutoDetectingAll && autoDetectProgress.total > 0 && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>生成进度</span>
+            <span>{autoDetectProgress.done} / {autoDetectProgress.total}</span>
+          </div>
+          <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-300 ease-out"
+              style={{ width: `${Math.round((autoDetectProgress.done / autoDetectProgress.total) * 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center gap-2">
         {([
           { label: "写实类", styles: ["live-action", "hyper-cg"] as ArtStyle[] },

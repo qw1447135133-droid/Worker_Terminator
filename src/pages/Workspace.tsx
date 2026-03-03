@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import type { DecomposeModel } from "@/components/workspace/ScriptInput";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Film, Settings } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -47,6 +48,13 @@ const Workspace = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [artStyle, setArtStyle] = useState<ArtStyle>("live-action");
   const [systemPrompt, setSystemPrompt] = useState("");
+  const [decomposeModel, setDecomposeModelState] = useState<DecomposeModel>(() => {
+    try { return (localStorage.getItem("decompose-model") as DecomposeModel) || "gemini-3.1-pro-preview"; } catch { return "gemini-3.1-pro-preview"; }
+  });
+  const setDecomposeModel = (v: DecomposeModel) => {
+    setDecomposeModelState(v);
+    try { localStorage.setItem("decompose-model", v); } catch {}
+  };
   // Persistent storyboard generating state
   const SB_TASK_LS_KEY = "generating-storyboard-tasks";
   const SB_TIMEOUT_MS = 240_000;
@@ -220,7 +228,7 @@ const Workspace = () => {
             "Authorization": `Bearer ${supabaseKey}`,
             "apikey": supabaseKey,
           },
-          body: JSON.stringify({ script }),
+          body: JSON.stringify({ script, model: decomposeModel }),
           signal: controller.signal,
         });
 
@@ -289,7 +297,7 @@ const Workspace = () => {
             "Authorization": `Bearer ${supabaseKey}`,
             "apikey": supabaseKey,
           },
-          body: JSON.stringify({ script, systemPrompt }),
+          body: JSON.stringify({ script, systemPrompt, model: decomposeModel }),
           signal: controller.signal,
         });
 
@@ -996,6 +1004,8 @@ const Workspace = () => {
               onAnalyze={handleAnalyze}
               onCancelAnalyze={handleCancelAnalyze}
               isAnalyzing={isAnalyzing}
+              decomposeModel={decomposeModel}
+              onDecomposeModelChange={setDecomposeModel}
             />
             {rawAiOutput && (
               <details className="mb-4">

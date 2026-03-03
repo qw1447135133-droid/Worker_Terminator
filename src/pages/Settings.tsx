@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Key, Save, Database, HardDrive, Cloud } from "lucide-react";
+import { ArrowLeft, Key, Save, Database, HardDrive, Cloud, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +20,9 @@ export interface ApiConfig {
   zhanhuKey: string;
   seedance: string;
   viduKey: string;
+  // API 端点
+  zhanhuEndpoint: string;
+  seedanceEndpoint: string;
 }
 
 const STORAGE_KEY = "storyforge_api_config";
@@ -44,6 +47,8 @@ const DEFAULT_CONFIG: ApiConfig = {
   zhanhuKey: "",
   seedance: "",
   viduKey: "",
+  zhanhuEndpoint: "https://api.minimaxi.com/anthropic",
+  seedanceEndpoint: "https://api.minimax.chat/v1",
 };
 
 export function getApiConfig(): ApiConfig {
@@ -299,6 +304,40 @@ const Settings = () => {
               </CardContent>
             </Card>
           ))}
+        </div>
+
+        {/* API 端点配置 */}
+        <div className="space-y-4">
+          <h2 className="text-sm font-medium flex items-center gap-2">
+            <Globe className="h-4 w-4" />
+            API 端点配置
+          </h2>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">自定义端点</CardTitle>
+              <CardDescription>可自定义 API 端点地址（高级选项）</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label className="text-sm">站狐 API 端点</Label>
+                <Input
+                  value={config.zhanhuEndpoint || ""}
+                  onChange={(e) => setConfig((p) => ({ ...p, zhanhuEndpoint: e.target.value }))}
+                  placeholder="https://api.minimaxi.com/anthropic"
+                  className="font-mono text-sm mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-sm">Seedance API 端点</Label>
+                <Input
+                  value={config.seedanceEndpoint || ""}
+                  onChange={(e) => setConfig((p) => ({ ...p, seedanceEndpoint: e.target.value }))}
+                  placeholder="https://api.minimax.chat/v1"
+                  className="font-mono text-sm mt-1"
+                />
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* 说明 */}

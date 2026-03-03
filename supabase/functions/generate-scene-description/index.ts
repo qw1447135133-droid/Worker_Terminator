@@ -96,9 +96,14 @@ Write in vivid, detail-rich English that can be used directly as an AI image gen
   const userContent = `Script content:\n${script}\n\nGenerate a detailed environment description for the scene "${sceneName}".`;
 
   const useModel = requestedModel || "gemini-3-pro-preview";
+  const isThinking = useModel.toLowerCase().includes("thinking");
   const TIMEOUT_MS = 290_000;
 
-  console.log(`generate-scene-description using model: ${useModel}`);
+  const generationConfig: any = isThinking
+    ? { thinkingConfig: { thinkingBudget: 2048 } }
+    : {};
+
+  console.log(`generate-scene-description using model: ${useModel}, thinking: ${isThinking}`);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -115,6 +120,7 @@ Write in vivid, detail-rich English that can be used directly as an AI image gen
         },
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\n${userContent}` }] }],
+          ...(Object.keys(generationConfig).length > 0 ? { generationConfig } : {}),
         }),
         signal: controller.signal,
       },
@@ -133,7 +139,8 @@ Write in vivid, detail-rich English that can be used directly as an AI image gen
   }
 
   const data = await response.json();
-  const description = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+  const parts = data.candidates?.[0]?.content?.parts?.filter((p: any) => !p.thought) || [];
+  const description = parts.map((p: any) => p.text || "").join("").trim();
 
   return { description };
 }

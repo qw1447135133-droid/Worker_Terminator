@@ -141,11 +141,13 @@ Write in vivid, visually precise English that can be used directly as an AI imag
     ? `Script content:\n${script}\n\nCharacter: "${characterName}"\nCostume variants to describe (in order): ${JSON.stringify(costumes)}\n\nGenerate the base description and per-costume descriptions as specified.`
     : `Script content:\n${script}\n\nGenerate a detailed appearance and design description for the character "${characterName}".`;
 
-  const generationConfig: any = hasCostumes
-    ? { responseMimeType: "application/json" }
-    : {};
-
   const useModel = requestedModel || "gemini-3-pro-preview";
+  const isThinking = useModel.toLowerCase().includes("thinking");
+
+  const generationConfig: any = {
+    ...(hasCostumes ? { responseMimeType: "application/json" } : {}),
+    ...(isThinking ? { thinkingConfig: { thinkingBudget: 2048 } } : {}),
+  };
   const TIMEOUT_MS = 290_000;
 
   console.log(`generate-character-description using model: ${useModel}`);

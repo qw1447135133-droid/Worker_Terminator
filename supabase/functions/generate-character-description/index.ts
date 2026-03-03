@@ -8,6 +8,15 @@ const corsHeaders = {
 
 const ZHANHU_BASE_URL = "http://202.90.21.53:13003/v1beta";
 
+const ETHNICITY_RULE = `### Ethnicity & Cultural Consistency (HIGHEST PRIORITY)
+You MUST first determine the cultural/geographical setting of the script (e.g., Western/European, East Asian, Middle Eastern, African, Latin American, etc.).
+- ALL characters MUST default to the ethnicity, skin tone, and facial features typical of that setting UNLESS the script explicitly states otherwise for a specific character.
+- For a Western/European story: characters should have Caucasian features by default. Do NOT insert East Asian or other non-matching ethnic features unless the script explicitly describes that character as such.
+- For an East Asian story: characters should have East Asian features by default.
+- Apply the same logic for any other cultural setting.
+- If the script explicitly describes a character's ethnicity or origin differently from the setting, follow the script.
+This rule overrides any other inference. Ethnicity must be explicitly stated in every description.`;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -40,6 +49,8 @@ serve(async (req) => {
 1. A brief base character description (gender, age, build, facial features, hairstyle, skin tone — NO clothing).
 2. For EACH costume variant listed, produce a detailed AI-ready appearance description designed to generate a **standard character design sheet** showing the character wearing that specific outfit.
 
+${ETHNICITY_RULE}
+
 ### Critical Layout Constraints
 1. Each costume description must depict a Character Design Sheet with multiple angles (front, side, back) and face close-up.
 2. NO text labels, annotations, or captions in the image.
@@ -58,6 +69,8 @@ Return a JSON object with:
 
 Return ONLY valid JSON. No markdown, no code blocks.`
       : `You are a professional film character designer and AI image-prompt expert. Your core task is: based on the script provided by the user and a specified character name, produce a detailed AI-ready appearance description designed to generate a **standard character design sheet**.
+
+${ETHNICITY_RULE}
 
 ### Critical Layout Constraints (must be translated into drawing instructions)
 
@@ -84,7 +97,7 @@ Your description must cover ALL of the following so it can be directly converted
 - Height and build (e.g., lean, muscular, hunched)
 - Facial features (face shape, distinctive features, skin texture, scars or blemishes)
 - Hairstyle and hair color
-- Skin tone
+- Skin tone and ethnicity (MUST match the script's cultural setting)
 - Clothing style and specific garments (must detail fabric material, layering structure, wear/tear level, weathering)
 - Accessories and handheld props (e.g., canteen, spear, leg wraps — specific design details)
 

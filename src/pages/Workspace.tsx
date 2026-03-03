@@ -33,6 +33,65 @@ const createSemaphore = (max: number) => {
   };
 };
 
+/**
+ * Read a streaming response (with heartbeat newlines) chunk-by-chunk.
+ * Resolves as soon as the last non-empty line contains valid JSON,
+ * without waiting for the stream to fully close.
+ */
+async function readStreamingJson(
+  response: Response,
+  controller: AbortController,
+  timeoutMs: number,
+): Promise<any> {
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const reader = response.body?.getReader();
+  if (!reader) {
+    clearTimeout(timeoutId);
+    throw new Error("无法读取响应流");
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (value) buffer += decoder.decode(value, { stream: true });
+
+      // Try to parse the last non-empty line as JSON
+      const lines = buffer.split("\n").filter((l) => l.trim());
+      if (lines.length > 0) {
+        const candidate = lines[lines.length - 1].trim();
+        try {
+          const parsed = JSON.parse(candidate);
+          // Successfully parsed JSON — we're done, don't wait for stream close
+          clearTimeout(timeoutId);
+          reader.cancel().catch(() => {});
+          if (parsed?.error) {
+            const err = parsed.error;
+            throw new Error(typeof err === "string" ? err : err.message || JSON.stringify(err));
+          }
+          return parsed;
+        } catch {
+          // Not valid JSON yet, continue reading
+          if (done) {
+            throw new Error("响应流已结束但无法解析 JSON: " + candidate.substring(0, 200));
+          }
+        }
+      }
+
+      if (done) break;
+    }
+  } catch (err) {
+    clearTimeout(timeoutId);
+    reader.cancel().catch(() => {});
+    throw err;
+  }
+
+  clearTimeout(timeoutId);
+  throw new Error("响应流结束但未收到有效数据");
+}
+
 const Workspace = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -239,14 +298,8 @@ const Workspace = () => {
           throw new Error(errMsg);
         }
 
-        // Read body with dedicated timeout (covers streaming heartbeat period)
-        const extractBodyTimeoutId = setTimeout(() => controller.abort(), 120_000);
-        const extractText = await extractResponse.text();
-        clearTimeout(extractBodyTimeoutId);
-        const extractLines = extractText.trim().split("\n").filter((l) => l.trim());
-        const extractLastLine = extractLines[extractLines.length - 1];
-        const extractData = JSON.parse(extractLastLine);
-        if (extractData?.error) throw new Error(typeof extractData.error === 'string' ? extractData.error : (extractData.error.message || JSON.stringify(extractData.error)));
+        // Read streaming response chunk-by-chunk; resolve as soon as JSON arrives
+        const extractData = await readStreamingJson(extractResponse, controller, 120_000);
 
         // Process characters from phase 1
         const aiCharacters: Array<{ name: string; description: string; costumes?: Array<{ label: string; description: string }> }> = extractData.characters || [];
@@ -308,17 +361,8 @@ const Workspace = () => {
           throw new Error(errMsg);
         }
 
-        // Read streaming response with timeout covering the full body read
-        // The timeout from line 207 (controller) already covers the fetch,
-        // but we need to also set a new timeout for reading the body
-        const bodyTimeoutId = setTimeout(() => controller.abort(), timeoutMs);
-        const text = await response.text();
-        clearTimeout(bodyTimeoutId);
-        const lines = text.trim().split("\n").filter((l) => l.trim());
-        const lastLine = lines[lines.length - 1];
-        const data = JSON.parse(lastLine);
-
-        if (data?.error) throw new Error(typeof data.error === 'string' ? data.error : (data.error.message || JSON.stringify(data.error)));
+        // Read streaming response chunk-by-chunk; resolve as soon as JSON arrives
+        const data = await readStreamingJson(response, controller, timeoutMs);
 
         // Validate data structure
         if (!data.scenes || !Array.isArray(data.scenes)) {

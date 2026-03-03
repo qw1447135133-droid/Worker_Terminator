@@ -337,10 +337,9 @@ const Workspace = () => {
 
         toast({ title: "阶段 1/2 完成", description: `识别 ${autoCharacters.length} 个角色，${aiSceneSettings.length} 个场景` });
 
-        // ========== Phase 2: Script decomposition (timing-focused) ==========
+        // ========== Phase 2: Script decomposition (streaming) ==========
         toast({ title: "阶段 2/2", description: "正在拆解分镜与时长分配..." });
 
-        // Use a single timeout that covers both fetch AND body reading
         const response = await fetch(`${supabaseUrl}/functions/v1/script-decompose`, {
           method: "POST",
           headers: {
@@ -355,22 +354,71 @@ const Workspace = () => {
         if (!response.ok) {
           const errText = await response.text();
           let errMsg = `剧本拆解失败 (${response.status})`;
-          try { errMsg = JSON.parse(errText.trim().split("\n").pop()!).error || errMsg; } catch { /* ignore */ }
+          try { errMsg = JSON.parse(errText.trim()).error || errMsg; } catch { /* ignore */ }
           throw new Error(errMsg);
         }
 
-        // Read streaming response chunk-by-chunk; resolve as soon as JSON arrives
-        const data = await readStreamingJson(response, controller, timeoutMs);
+        // Stream raw JSON text tokens and parse incrementally
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error("无法读取响应流");
 
-        // Validate data structure
-        if (!data.scenes || !Array.isArray(data.scenes)) {
-          throw new Error("API 返回数据缺少 scenes 字段");
+        const decoder = new TextDecoder();
+        let jsonBuffer = "";
+        let lastSceneCount = 0;
+        const streamTimeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (value) jsonBuffer += decoder.decode(value, { stream: true });
+
+            // Count how many complete scene objects we have so far using regex
+            const sceneMatches = jsonBuffer.match(/"sceneNumber"\s*:/g);
+            const currentCount = sceneMatches ? sceneMatches.length : 0;
+            if (currentCount > lastSceneCount) {
+              lastSceneCount = currentCount;
+              toast({ title: "阶段 2/2", description: `正在生成分镜... 已识别 ${currentCount} 个` });
+            }
+
+            if (done) break;
+          }
+        } finally {
+          clearTimeout(streamTimeoutId);
         }
 
-        // Store raw AI output for display
-        setRawAiOutput(JSON.stringify(data, null, 2));
+        // Parse complete JSON
+        let cleanedText = jsonBuffer.trim();
+        if (cleanedText.startsWith("```")) {
+          cleanedText = cleanedText.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
+        }
 
-        const parsedScenes: Scene[] = (data.scenes || []).map((s: any, i: number) => ({
+        // Check for error response
+        try {
+          const maybeError = JSON.parse(cleanedText);
+          if (maybeError?.error) throw new Error(typeof maybeError.error === "string" ? maybeError.error : JSON.stringify(maybeError.error));
+        } catch (e) {
+          if (e instanceof Error && e.message && !(e instanceof SyntaxError)) throw e;
+        }
+
+        let parsed: any;
+        try {
+          parsed = JSON.parse(cleanedText);
+        } catch {
+          // Try to extract JSON object
+          const match = cleanedText.match(/\{[\s\S]*\}/);
+          if (match) {
+            parsed = JSON.parse(match[0]);
+          } else {
+            throw new Error("无法解析返回的 JSON");
+          }
+        }
+
+        const rawScenes = Array.isArray(parsed) ? parsed : (parsed?.scenes || []);
+
+        // Store raw AI output for display
+        setRawAiOutput(JSON.stringify(parsed, null, 2));
+
+        const parsedScenes: Scene[] = rawScenes.map((s: any, i: number) => ({
           id: crypto.randomUUID(),
           sceneNumber: s.sceneNumber ?? i + 1,
           segmentLabel: s.segmentLabel ?? "",

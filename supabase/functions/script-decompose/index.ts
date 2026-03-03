@@ -6,113 +6,26 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const FALLBACK_PROMPT = `你现在是一位拥有20年经验的专业电影分镜师及AI视频生成专家。你的核心任务是将用户输入的剧本，在不改变原意和过度调整内容的前提下，拆解为适合AI视频生成的15秒分段脚本。
-
-
-
-### 核心任务流程
-
-
-
-1.  **结构拆分**：将剧本按逻辑拆分为"集"。每集内部包含8~10个"片段"（具体数量根据剧本内容长度灵活调整），每个片段对应视频时长固定为15秒。
-
-2.  **语速与台词容量控制（核心约束）**：严格根据对话文字长度估算15秒的物理时长限制，避免台词过载：
-
-    * **正常语速/旁白**：15秒片段最多容纳约 **30字** 左右。
-
-    * **快速对话/情绪激动**：15秒片段最多容纳约 **45字** 左右。
-
-    * 若某段对白超过该字数限制，必须将其顺延拆分到下一个15秒片段中，绝不能强行堆叠。
-
-3.  **内容切片与分镜弹性调整**：结合上述台词字数，将每个15秒片段灵活拆解为3~5个具体的"分镜"。
-
-    * *对白密集型片段*（字数接近上限）：分镜数量可适当减少（3个左右），确保说话主体明确。
-
-    * *动作/情绪展示型片段*（字数极少或无）：分镜数量可适当增加（4~5个），用多视角填补画面。
-
-4.  **原汁原味与格式化**：
-
-    * **极简干预**：严禁过度调整剧本内容。仅进行断句、拆分、文字纠错（修正错别字及明显语病）和必要的去敏化。
-
-    * 分镜内容必须**基于原剧本文字**进行直接拆分。
-
-    * 将原剧本中出现的所有人名、地名用\`[]\`包裹。
-
-    * **严禁**添加原剧本中没有的人物外貌、服装、性格或多余的动作描述。
-
-5.  **空间逻辑补全**：
-
-    * **幽灵位（站位）**：如果某人物在当前15秒片段的剧情逻辑中应当在场，但原剧本文字未提及（无对话或动作），**必须**在合适的分镜中仅以最简练的文字补充其站位描述（例如："[张三]正站在[李四]身后"）。
-
-6.  **去敏化**：若剧本旁白或描述中涉及敏感、暴力或违规词汇，请在保留原意的前提下替换该词汇（注：人物对白保持绝对原样，不作删减）。
-
-
-
-### 禁忌事项
-
-
-
-* **严禁镜头术语**：禁止出现"特写"、"全景"、"推拉摇移"、"俯视"等专业术语。只描述画面中发生了什么。
-
-* **严禁遗漏对话**：所有对白必须完整保留在对应分镜中。
-
-* **严禁擅自加戏**：禁止一切偏离原剧本走向的主观创作。
-
-
-
-### 输出格式规范（严格执行）
-
-
-
-**【第X集】**
-
-
-
-**片段 X-1 (时长: 15s)**
-
-* **场景/人物标签**：[场景名] [角色A] [角色B]
-
-* **分镜脚本**：
-
-    分镜1：[角色A]……（直接引用原剧本动作/对话，人名加方括号）
-
-    分镜2：[角色B]……（若涉及未提及角色的站位，在此处融合描述，如：[角色C]默默站在角落）
-
-    分镜3：……
-
-    分镜4：……（注：根据该片段台词密度，动态输出3~5个分镜）
-
-* **通用后缀**：无字幕、无水印、无背景音
-
-
-
----
-
-
-
-**片段 X-2 (时长: 15s)**
-
-* **前情提要**：（50字以内，简述上个片段发生的关键剧情）
-
-* **场景/人物标签**：[场景名] [角色A] [角色C]
-
-* **分镜脚本**：
-
-    分镜1：……
-
-    ...
-
-    分镜3：……
-
-* **通用后缀**：无字幕、无水印、无背景音
-
-
-
-*(以此类推，按8~10个片段的节奏直至本集拆解结束)*
-
-
-
-请等待用户输入剧本。收到剧本后，直接开始按上述格式输出，无需寒暄。`;
+const SYSTEM_PROMPT = `你是专业电影分镜师。将剧本拆解为AI视频生成用的15秒分段分镜脚本。
+
+规则：
+1. 每集8~10个片段，每片段15秒，含3~5个分镜
+2. 台词容量：正常语速≤30字/片段，快速≤45字/片段，超出则拆到下一片段
+3. 基于原文拆分，人名地名用[]包裹，禁止加戏、禁止镜头术语、对白完整保留
+4. 在场但未提及的角色补充简短站位描述
+5. 敏感描述替换（对白原样保留）
+
+输出JSON，仅含"scenes"数组。每个对象：
+- sceneNumber: 全局序号(整数递增)
+- segmentLabel: 片段编号如"1-1","1-2"(按15秒重新划分，同片段多分镜共享)
+- sceneName: 场景名
+- description: 画面描述
+- characters: 出场角色数组
+- dialogue: "角色：台词"格式，多条换行，无则空串
+- cameraDirection: 固定"无字幕、无水印、无背景音"
+- duration: 固定15
+
+直接输出JSON，无思考过程。`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -129,92 +42,35 @@ serve(async (req) => {
     );
   }
 
-  const { readable, writable } = new TransformStream();
-  const writer = writable.getWriter();
-  const encoder = new TextEncoder();
-
-  const heartbeat = setInterval(() => {
-    writer.write(encoder.encode("\n")).catch(() => {});
-  }, 5_000);
-
-  (async () => {
-    try {
-      const result = await decomposeScript(body);
-      clearInterval(heartbeat);
-      await writer.write(encoder.encode(JSON.stringify(result) + "\n"));
-    } catch (e: any) {
-      clearInterval(heartbeat);
-      console.error("script-decompose error:", e);
-      try {
-        await writer.write(encoder.encode(JSON.stringify({ error: e.message || "未知错误" }) + "\n"));
-      } catch {}
-    } finally {
-      try { await writer.close(); } catch {}
-    }
-  })();
-
-  return new Response(readable, {
-    headers: { ...corsHeaders, "Content-Type": "text/plain; charset=utf-8" },
-  });
-});
-
-async function decomposeScript(body: any) {
   const { script, systemPrompt, model: requestedModel, geminiKey } = body;
 
   if (!script || typeof script !== "string") {
-    throw new Error("缺少剧本内容");
+    return new Response(
+      JSON.stringify({ error: "缺少剧本内容" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 
   const apiKey = geminiKey;
   if (!apiKey) {
-    throw new Error("API Key 未配置，请在设置中配置 Gemini API Key");
+    return new Response(
+      JSON.stringify({ error: "API Key 未配置，请在设置中配置 Gemini API Key" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 
-  const basePrompt = (systemPrompt && typeof systemPrompt === "string") ? systemPrompt : FALLBACK_PROMPT;
-  
-  const jsonEnforcement = `\n\n【重要：输出格式强制要求】
-无论上面的提示词如何描述输出格式，你的最终输出必须是一个合法的JSON对象（不要包含任何其他文字），仅包含 "scenes" 字段。
-
-【深度思考：时长分配】
-在拆解分镜之前，请务必深度思考以下问题：
-- 每段对白的实际朗读时长（正常语速约2字/秒，快速语速约3字/秒）
-- 无对白的动作/情绪展示片段需要多长时间来传达情感
-- 场景转换时的视觉过渡需要预留时间
-- 紧张/高潮段落的节奏应该加快，抒情/回忆段落应该放慢
-- 确保每个15秒片段内的内容量合理，既不过载也不空洞
-
-"scenes" - 分镜数组。注意：每个15秒片段包含3~5个分镜，每集包含8~10个片段。因此scenes数组的总长度应为 (8~10片段) × (3~5分镜/片段) = 24~50个元素。
-同一个片段内的多个分镜共享相同的 segmentLabel。例如片段1-1包含3个分镜，则这3个分镜的segmentLabel都是"1-1"。
-
-每个分镜对象包含：
-- sceneNumber: 分镜全局序号（从1开始的整数，在整个scenes数组中递增）
-- segmentLabel: 该分镜所属片段的编号标签，由你根据每集8~10个片段的节奏自行计算（如"1-1"、"1-2"……"1-10"、"2-1"等），格式为"集-片段"。不要照搬剧本原文中的场景编号，而是按15秒一段重新划分。同一片段内的多个分镜必须使用相同的segmentLabel。必填项。
-- sceneName: 场景名称
-- description: 该分镜的画面描述（一个分镜对应一个具体画面动作）
-- characters: 该分镜出场角色名称数组
-- dialogue: 该分镜的对白，格式"角色名：台词"，多条用换行分隔，无对白则为空字符串
-- cameraDirection: 通用后缀（固定为"无字幕、无水印、无背景音"）
-- duration: 时长秒数（固定为15，表示该分镜所属片段的总时长）
-
-【关键约束】：每个segmentLabel必须对应3~5个分镜对象，绝不能1个片段只有1个分镜！
-
-注意：本阶段**不需要**输出 characters 和 sceneSettings 字段，角色和场景已在前置阶段提取完成。
-
-请严格按此JSON格式输出，不要输出文本格式的分镜脚本。不要输出任何思考过程。直接输出JSON。`;
-  
-  const prompt = basePrompt + jsonEnforcement;
-
+  const prompt = (systemPrompt && typeof systemPrompt === "string") ? systemPrompt : SYSTEM_PROMPT;
   const model = requestedModel || "gemini-3.1-pro-preview";
-  const TIMEOUT_MS = 290_000; // Extended timeout for single model
-  const promptText = `${prompt}\n\n---\n\n以下是用户的剧本：\n\n${script}`;
+  const TIMEOUT_MS = 290_000;
 
-  console.log(`script-decompose using model: ${model}`);
+  const userText = `${prompt}\n\n---\n\n以下是用户的剧本：\n\n${script}`;
 
-  const apiUrl = `http://202.90.21.53:13003/v1beta/models/${model}:generateContent/`;
+  console.log(`script-decompose streaming, model: ${model}`);
+
+  // Use streamGenerateContent for real-time token streaming
+  const apiUrl = `http://202.90.21.53:13003/v1beta/models/${model}:streamGenerateContent?alt=sse`;
   const requestBody = JSON.stringify({
-    contents: [
-      { role: "user", parts: [{ text: promptText }] },
-    ],
+    contents: [{ role: "user", parts: [{ text: userText }] }],
     generationConfig: {
       temperature: 0.3,
       maxOutputTokens: 65536,
@@ -224,8 +80,8 @@ async function decomposeScript(body: any) {
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  let geminiResponse: Response;
 
+  let geminiResponse: Response;
   try {
     geminiResponse = await fetch(apiUrl, {
       method: "POST",
@@ -233,95 +89,86 @@ async function decomposeScript(body: any) {
       body: requestBody,
       signal: controller.signal,
     });
-    clearTimeout(timeoutId);
   } catch (err) {
     clearTimeout(timeoutId);
     const isTimeout = err instanceof Error && (err.message.includes("abort") || err.name === "AbortError");
-    throw new Error(isTimeout ? "AI 服务连接超时，请稍后重试" : `模型调用失败: ${err instanceof Error ? err.message : String(err)}`);
+    return new Response(
+      JSON.stringify({ error: isTimeout ? "AI 服务连接超时" : `模型调用失败: ${err instanceof Error ? err.message : String(err)}` }),
+      { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 
   if (!geminiResponse.ok) {
+    clearTimeout(timeoutId);
     const errText = await geminiResponse.text();
     console.error(`Model ${model} returned ${geminiResponse.status}:`, errText);
-    throw new Error(`模型 ${model} 调用失败 (${geminiResponse.status})`);
+    return new Response(
+      JSON.stringify({ error: `模型 ${model} 调用失败 (${geminiResponse.status})` }),
+      { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 
-  const geminiData = await geminiResponse.json();
-  const parts = geminiData?.candidates?.[0]?.content?.parts || [];
-  const textContent = parts
-    .filter((p: any) => !p.thought)
-    .map((p: any) => p.text || "")
-    .join("");
+  // Stream SSE from Gemini → forward text tokens to client as raw text chunks
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+  const encoder = new TextEncoder();
 
-  if (!textContent) {
-    console.error("Unexpected Gemini response:", JSON.stringify(geminiData));
-    throw new Error("Gemini 返回格式异常");
-  }
+  (async () => {
+    const reader = geminiResponse.body?.getReader();
+    if (!reader) {
+      clearTimeout(timeoutId);
+      await writer.write(encoder.encode(JSON.stringify({ error: "无响应流" }) + "\n"));
+      await writer.close();
+      return;
+    }
 
-  let cleanedText = textContent.trim();
-  if (cleanedText.startsWith("```")) {
-    cleanedText = cleanedText.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
-  }
+    const decoder = new TextDecoder();
+    let sseBuffer = "";
 
-  let parsed;
-  const parseAttempts: (() => unknown)[] = [
-    () => JSON.parse(cleanedText),
-    () => {
-      const match = cleanedText.match(/\{[\s\S]*\}/);
-      if (!match) throw new Error("no object");
-      return JSON.parse(match[0]);
-    },
-    () => {
-      const match = cleanedText.match(/\[[\s\S]*\]/);
-      if (!match) throw new Error("no array");
-      return JSON.parse(match[0]);
-    },
-    () => {
-      for (let i = cleanedText.length - 1; i >= 0; i--) {
-        const ch = cleanedText[i];
-        if (ch === '}' || ch === ']') {
-          const startCh = ch === '}' ? '{' : '[';
-          const startIdx = cleanedText.indexOf(startCh);
-          if (startIdx >= 0) {
-            return JSON.parse(cleanedText.substring(startIdx, i + 1));
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        sseBuffer += decoder.decode(value, { stream: true });
+
+        // Process SSE lines
+        let newlineIdx: number;
+        while ((newlineIdx = sseBuffer.indexOf("\n")) !== -1) {
+          const line = sseBuffer.slice(0, newlineIdx).trim();
+          sseBuffer = sseBuffer.slice(newlineIdx + 1);
+
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === "[DONE]") continue;
+
+          try {
+            const chunk = JSON.parse(jsonStr);
+            const parts = chunk?.candidates?.[0]?.content?.parts || [];
+            for (const part of parts) {
+              if (part.thought) continue; // skip thinking tokens
+              if (part.text) {
+                // Forward raw text token to client
+                await writer.write(encoder.encode(part.text));
+              }
+            }
+          } catch {
+            // Incomplete JSON in SSE, skip
           }
         }
       }
-      throw new Error("no json bounds");
-    },
-  ];
-
-  let lastErr: unknown;
-  for (const attempt of parseAttempts) {
-    try {
-      parsed = attempt();
-      break;
-    } catch (e) {
-      lastErr = e;
+    } catch (err) {
+      console.error("Stream read error:", err);
+      try {
+        await writer.write(encoder.encode("\n" + JSON.stringify({ error: "流读取异常" })));
+      } catch {}
+    } finally {
+      clearTimeout(timeoutId);
+      try { await writer.close(); } catch {}
     }
-  }
-  if (parsed === undefined) {
-    console.error("All JSON parse attempts failed. Raw text:", cleanedText.substring(0, 500));
-    throw new Error("无法解析 Gemini 返回的 JSON: " + (lastErr instanceof Error ? lastErr.message : String(lastErr)));
-  }
+  })();
 
-  let scenes, characters, sceneSettingsData;
-  if (Array.isArray(parsed)) {
-    scenes = parsed;
-    characters = [];
-    sceneSettingsData = [];
-  } else {
-    scenes = (parsed as any).scenes || [];
-    characters = (parsed as any).characters || [];
-    sceneSettingsData = (parsed as any).sceneSettings || [];
-  }
-
-  if (scenes.length > 0 && !Array.isArray(scenes[0]) && scenes[0].scenes && Array.isArray(scenes[0].scenes)) {
-    const nested = scenes[0];
-    scenes = nested.scenes;
-    if ((!characters || characters.length === 0) && nested.characters) characters = nested.characters;
-    if ((!sceneSettingsData || sceneSettingsData.length === 0) && nested.sceneSettings) sceneSettingsData = nested.sceneSettings;
-  }
-
-  return { scenes, characters, sceneSettings: sceneSettingsData };
-}
+  return new Response(readable, {
+    headers: { ...corsHeaders, "Content-Type": "text/plain; charset=utf-8" },
+  });
+});

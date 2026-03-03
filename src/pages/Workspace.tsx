@@ -213,7 +213,6 @@ const Workspace = () => {
         // ========== Phase 1: Extract characters & scenes ==========
         toast({ title: "阶段 1/2", description: "正在识别角色与场景..." });
         
-        const extractTimeoutId = setTimeout(() => controller.abort(), 120_000);
         const extractResponse = await fetch(`${supabaseUrl}/functions/v1/extract-characters-scenes`, {
           method: "POST",
           headers: {
@@ -224,7 +223,6 @@ const Workspace = () => {
           body: JSON.stringify({ script }),
           signal: controller.signal,
         });
-        clearTimeout(extractTimeoutId);
 
         if (!extractResponse.ok) {
           const errText = await extractResponse.text();
@@ -233,7 +231,10 @@ const Workspace = () => {
           throw new Error(errMsg);
         }
 
+        // Read body with dedicated timeout (covers streaming heartbeat period)
+        const extractBodyTimeoutId = setTimeout(() => controller.abort(), 120_000);
         const extractText = await extractResponse.text();
+        clearTimeout(extractBodyTimeoutId);
         const extractLines = extractText.trim().split("\n").filter((l) => l.trim());
         const extractLastLine = extractLines[extractLines.length - 1];
         const extractData = JSON.parse(extractLastLine);
@@ -280,7 +281,7 @@ const Workspace = () => {
         // ========== Phase 2: Script decomposition (timing-focused) ==========
         toast({ title: "阶段 2/2", description: "正在拆解分镜与时长分配..." });
 
-        const decomposeTimeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        // Use a single timeout that covers both fetch AND body reading
         const response = await fetch(`${supabaseUrl}/functions/v1/script-decompose`, {
           method: "POST",
           headers: {
@@ -291,7 +292,6 @@ const Workspace = () => {
           body: JSON.stringify({ script, systemPrompt }),
           signal: controller.signal,
         });
-        clearTimeout(decomposeTimeoutId);
 
         if (!response.ok) {
           const errText = await response.text();
@@ -300,8 +300,12 @@ const Workspace = () => {
           throw new Error(errMsg);
         }
 
-        // Read streaming response: last non-empty line is the JSON result
+        // Read streaming response with timeout covering the full body read
+        // The timeout from line 207 (controller) already covers the fetch,
+        // but we need to also set a new timeout for reading the body
+        const bodyTimeoutId = setTimeout(() => controller.abort(), timeoutMs);
         const text = await response.text();
+        clearTimeout(bodyTimeoutId);
         const lines = text.trim().split("\n").filter((l) => l.trim());
         const lastLine = lines[lines.length - 1];
         const data = JSON.parse(lastLine);

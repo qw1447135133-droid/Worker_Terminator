@@ -1,9 +1,17 @@
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Loader2, Upload } from "lucide-react";
+import { Sparkles, Loader2, Upload, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+
+export type DecomposeModel = "gemini-3.1-pro-preview" | "gemini-3-pro-preview" | "gemini-3-pro-preview-thinking";
+
+const DECOMPOSE_MODEL_OPTIONS: { value: DecomposeModel; label: string }[] = [
+  { value: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro" },
+  { value: "gemini-3-pro-preview", label: "Gemini 3 Pro" },
+  { value: "gemini-3-pro-preview-thinking", label: "Gemini 3 Pro Thinking" },
+];
 
 interface ScriptInputProps {
   script: string;
@@ -11,13 +19,29 @@ interface ScriptInputProps {
   onAnalyze: () => void;
   onCancelAnalyze?: () => void;
   isAnalyzing: boolean;
+  decomposeModel: DecomposeModel;
+  onDecomposeModelChange: (model: DecomposeModel) => void;
 }
 
 const ACCEPTED_TYPES = ".txt,.pdf,.doc,.docx";
 
-const ScriptInput = ({ script, onScriptChange, onAnalyze, onCancelAnalyze, isAnalyzing }: ScriptInputProps) => {
+const ScriptInput = ({ script, onScriptChange, onAnalyze, onCancelAnalyze, isAnalyzing, decomposeModel, onDecomposeModelChange }: ScriptInputProps) => {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const isUploading = useRef(false);
+  const [modelOpen, setModelOpen] = useState(false);
+  const modelDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(e.target as Node)) {
+        setModelOpen(false);
+      }
+    };
+    if (modelOpen) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [modelOpen]);
+
+  const currentModel = DECOMPOSE_MODEL_OPTIONS.find((o) => o.value === decomposeModel)!;
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -83,11 +107,41 @@ const ScriptInput = ({ script, onScriptChange, onAnalyze, onCancelAnalyze, isAna
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-xl font-semibold font-[Space_Grotesk] mb-1">输入剧本</h2>
-          <p className="text-sm text-muted-foreground">
-            粘贴文本或上传文档（TXT / PDF / Word），AI 将自动拆解为分镜列表
-          </p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h2 className="text-xl font-semibold font-[Space_Grotesk] mb-1">输入剧本</h2>
+            <p className="text-sm text-muted-foreground">
+              粘贴文本或上传文档（TXT / PDF / Word），AI 将自动拆解为分镜列表
+            </p>
+          </div>
+          {/* Model Selector — pill style matching CharacterSettings */}
+          <div className="relative" ref={modelDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setModelOpen((v) => !v)}
+              disabled={isAnalyzing}
+              className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/5 px-3 py-0.5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+            >
+              {currentModel.label}
+              <ChevronDown className={`h-3 w-3 transition-transform ${modelOpen ? "rotate-180" : ""}`} />
+            </button>
+            {modelOpen && (
+              <div className="absolute left-0 top-full mt-1 z-50 min-w-[180px] rounded-lg border border-border bg-popover shadow-lg py-1">
+                {DECOMPOSE_MODEL_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => { onDecomposeModelChange(opt.value); setModelOpen(false); }}
+                    className={`w-full text-left px-4 py-2 text-sm transition-colors hover:bg-accent ${
+                      opt.value === decomposeModel ? "text-primary font-semibold" : "text-popover-foreground"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         <div>
           <input

@@ -129,7 +129,6 @@ serve(async (req) => {
     );
   }
 
-  // Use streaming response with heartbeats to prevent gateway timeout
   const { readable, writable } = new TransformStream();
   const writer = writable.getWriter();
   const encoder = new TextEncoder();
@@ -160,7 +159,7 @@ serve(async (req) => {
 });
 
 async function decomposeScript(body: any) {
-  const { script, systemPrompt } = body;
+  const { script, systemPrompt, model: requestedModel } = body;
 
   if (!script || typeof script !== "string") {
     throw new Error("缺少剧本内容");
@@ -173,7 +172,6 @@ async function decomposeScript(body: any) {
 
   const basePrompt = (systemPrompt && typeof systemPrompt === "string") ? systemPrompt : FALLBACK_PROMPT;
   
-  // Always inject JSON output and segmentLabel requirements
   const jsonEnforcement = `\n\n【重要：输出格式强制要求】
 无论上面的提示词如何描述输出格式，你的最终输出必须是一个合法的JSON对象（不要包含任何其他文字），仅包含 "scenes" 字段。
 
@@ -206,77 +204,49 @@ async function decomposeScript(body: any) {
   
   const prompt = basePrompt + jsonEnforcement;
 
-  const models = ["gemini-3.1-pro-preview", "gemini-3-pro-preview"];
-  // Global deadline: must finish within 140s to stay under platform wall-clock limit (~150s)
-  const FUNCTION_DEADLINE_MS = 140_000;
-  // Per-model cap: leave enough time for fallback model
-  const PER_MODEL_CAP_MS = 90_000;
-  const functionStart = Date.now();
+  const model = requestedModel || "gemini-3.1-pro-preview";
+  const TIMEOUT_MS = 140_000; // Full timeout for single model
   const promptText = `${prompt}\n\n---\n\n以下是用户的剧本：\n\n${script}`;
 
-  let geminiResponse: Response | null = null;
-  let lastError: Error | null = null;
+  console.log(`script-decompose using model: ${model}`);
 
-  for (const model of models) {
-    const elapsed = Date.now() - functionStart;
-    const remaining = FUNCTION_DEADLINE_MS - elapsed;
-    if (remaining < 15_000) {
-      console.log(`Only ${remaining}ms remaining, skipping model ${model}`);
-      break;
-    }
-    const perModelTimeout = Math.min(remaining - 5_000, PER_MODEL_CAP_MS);
+  const apiUrl = `http://202.90.21.53:13003/v1beta/models/${model}:generateContent/`;
+  const requestBody = JSON.stringify({
+    contents: [
+      { role: "user", parts: [{ text: promptText }] },
+    ],
+    generationConfig: {
+      temperature: 0.3,
+      maxOutputTokens: 65536,
+      responseMimeType: "application/json",
+    },
+  });
 
-    const apiUrl = `http://202.90.21.53:13003/v1beta/models/${model}:generateContent/`;
-    const requestBody = JSON.stringify({
-      contents: [
-        { role: "user", parts: [{ text: promptText }] },
-      ],
-      generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens: 65536,
-        responseMimeType: "application/json",
-      },
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  let geminiResponse: Response;
+
+  try {
+    geminiResponse = await fetch(apiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+      body: requestBody,
+      signal: controller.signal,
     });
-
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), perModelTimeout);
-      const resp = await fetch(apiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-        body: requestBody,
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-
-      if (resp.ok) {
-        console.log(`Successfully using model: ${model}`);
-        geminiResponse = resp;
-        break;
-      } else {
-        const errText = await resp.text();
-        console.error(`Model ${model} returned ${resp.status}:`, errText);
-        lastError = new Error(`${model} failed (${resp.status})`);
-      }
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      console.error(`Model ${model} failed:`, lastError.message);
-    }
-  }
-
-  if (!geminiResponse) {
-    const isTimeout = lastError?.message?.includes("abort") || lastError?.message?.includes("timed out") || lastError?.name === "AbortError";
-    throw new Error(isTimeout ? "AI 服务连接超时，请稍后重试" : "所有模型均不可用，请稍后重试");
+    clearTimeout(timeoutId);
+  } catch (err) {
+    clearTimeout(timeoutId);
+    const isTimeout = err instanceof Error && (err.message.includes("abort") || err.name === "AbortError");
+    throw new Error(isTimeout ? "AI 服务连接超时，请稍后重试" : `模型调用失败: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   if (!geminiResponse.ok) {
     const errText = await geminiResponse.text();
-    console.error("Gemini API error:", geminiResponse.status, errText);
-    throw new Error(`Gemini API 调用失败 (${geminiResponse.status})`);
+    console.error(`Model ${model} returned ${geminiResponse.status}:`, errText);
+    throw new Error(`模型 ${model} 调用失败 (${geminiResponse.status})`);
   }
 
   const geminiData = await geminiResponse.json();
-  // 过滤掉 thought parts，只取实际输出
   const parts = geminiData?.candidates?.[0]?.content?.parts || [];
   const textContent = parts
     .filter((p: any) => !p.thought)
@@ -288,7 +258,6 @@ async function decomposeScript(body: any) {
     throw new Error("Gemini 返回格式异常");
   }
 
-  // Clean markdown code blocks if present
   let cleanedText = textContent.trim();
   if (cleanedText.startsWith("```")) {
     cleanedText = cleanedText.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");

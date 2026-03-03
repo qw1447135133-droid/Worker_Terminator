@@ -19,6 +19,7 @@ export interface ApiConfig {
   // AI API Keys
   zhanhuKey: string;
   seedance: string;
+  viduKey: string;
 }
 
 const STORAGE_KEY = "storyforge_api_config";
@@ -29,6 +30,7 @@ const DEFAULT_CONFIG: ApiConfig = {
   supabaseKey: "",
   zhanhuKey: "",
   seedance: "",
+  viduKey: "",
 };
 
 export function getApiConfig(): ApiConfig {
@@ -115,6 +117,7 @@ const Settings = () => {
   const keyFields = [
     { key: "zhanhuKey", label: "Gemini API Key（站狐）", desc: "用于剧本拆解与分镜图 AI 生成" },
     { key: "seedance", label: "Seedance API Key（站狐）", desc: "用于视频片段生成" },
+    { key: "viduKey", label: "Vidu API Key（站狐）", desc: "用于视频生成（Vidu 模型）" },
   ];
 
   const supabaseFields = [

@@ -45,6 +45,7 @@ interface CharacterSettingsProps {
   onSceneSettingsChange: (s: SceneSetting[]) => void;
   onNext: () => void;
   script?: string;
+  decomposeModel?: string;
   isAutoDetectingAll: boolean;
   setIsAutoDetectingAll: (v: boolean) => void;
   isAbortingAutoDetect: boolean;
@@ -61,6 +62,7 @@ const CharacterSettings = ({
   onSceneSettingsChange,
   onNext,
   script,
+  decomposeModel,
   isAutoDetectingAll,
   setIsAutoDetectingAll,
   isAbortingAutoDetect,
@@ -583,6 +585,7 @@ const CharacterSettings = ({
             characterName: character.name,
             script,
             costumes: character.costumes!.map(cos => cos.label || "未命名"),
+            model: decomposeModel,
           },
         });
         if (error) throw error;
@@ -605,7 +608,7 @@ const CharacterSettings = ({
       } else {
         // No costumes — original behavior
         const { data, error } = await supabase.functions.invoke("generate-character-description", {
-          body: { characterName: character.name, script },
+          body: { characterName: character.name, script, model: decomposeModel },
         });
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
@@ -636,7 +639,7 @@ const CharacterSettings = ({
     setGeneratingDescIds(prev => new Set(prev).add(id));
     try {
       const { data, error } = await supabase.functions.invoke("generate-scene-description", {
-        body: { sceneName: scene.name, script },
+        body: { sceneName: scene.name, script, model: decomposeModel },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -724,7 +727,7 @@ const CharacterSettings = ({
       try {
         if (hasCostumesToDescribe) {
           const { data, error } = await supabase.functions.invoke("generate-character-description", {
-            body: { characterName: c.name, script, costumes: c.costumes!.map(cos => cos.label || "未命名") },
+            body: { characterName: c.name, script, costumes: c.costumes!.map(cos => cos.label || "未命名"), model: decomposeModel },
           });
           if (error) throw error;
           if (data?.error) throw new Error(data.error);
@@ -740,7 +743,7 @@ const CharacterSettings = ({
           }
         } else {
           const { data, error } = await supabase.functions.invoke("generate-character-description", {
-            body: { characterName: c.name, script },
+            body: { characterName: c.name, script, model: decomposeModel },
           });
           if (error) throw error;
           if (data?.error) throw new Error(data.error);
@@ -897,7 +900,7 @@ const CharacterSettings = ({
       setGeneratingDescIds((prev) => new Set(prev).add(s.id));
       try {
         const { data, error } = await supabase.functions.invoke("generate-scene-description", {
-          body: { sceneName: s.name, script },
+          body: { sceneName: s.name, script, model: decomposeModel },
         });
         if (error) throw error;
         if (data?.error) throw new Error(data.error);

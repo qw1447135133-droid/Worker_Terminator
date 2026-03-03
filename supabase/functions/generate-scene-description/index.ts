@@ -14,7 +14,7 @@ serve(async (req) => {
   }
 
   try {
-    const { sceneName, script } = await req.json();
+    const { sceneName, script, model: requestedModel } = await req.json();
 
     if (!sceneName || !script) {
       return new Response(JSON.stringify({ error: "缺少场景名称或剧本内容" }), {
@@ -77,8 +77,9 @@ Write in vivid, detail-rich English that can be used directly as an AI image gen
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+        const useModel = requestedModel || "gemini-3-pro-preview";
         response = await fetch(
-          `${ZHANHU_BASE_URL}/models/gemini-3-pro-preview:generateContent/`,
+          `${ZHANHU_BASE_URL}/models/${useModel}:generateContent/`,
           {
             method: "POST",
             headers: {

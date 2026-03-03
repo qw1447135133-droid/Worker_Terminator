@@ -23,7 +23,7 @@ serve(async (req) => {
   }
 
   try {
-    const { characterName, script, costumes } = await req.json();
+    const { characterName, script, costumes, model: requestedModel } = await req.json();
 
     if (!characterName || !script) {
       return new Response(JSON.stringify({ error: "缺少角色名称或剧本内容" }), {
@@ -128,8 +128,9 @@ Write in vivid, visually precise English that can be used directly as an AI imag
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+        const useModel = requestedModel || "gemini-3-pro-preview";
         response = await fetch(
-          `${ZHANHU_BASE_URL}/models/gemini-3-pro-preview:generateContent/`,
+          `${ZHANHU_BASE_URL}/models/${useModel}:generateContent/`,
           {
             method: "POST",
             headers: {

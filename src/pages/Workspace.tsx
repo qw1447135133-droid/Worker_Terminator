@@ -1077,6 +1077,7 @@ const Workspace = () => {
             onSceneSettingsChange={setSceneSettings}
             onNext={() => setCurrentStep(skipStoryboard ? 4 : 3)}
             script={script}
+            decomposeModel={decomposeModel}
             isAutoDetectingAll={isAutoDetectingAll}
             setIsAutoDetectingAll={setIsAutoDetectingAll}
             isAbortingAutoDetect={isAbortingAutoDetect}

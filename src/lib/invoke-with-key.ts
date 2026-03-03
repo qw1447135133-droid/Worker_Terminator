@@ -23,7 +23,7 @@ function getKeysForFunction(functionName: string): Record<string, string> {
     keys.seedanceKey = config.seedance;
   }
 
-  // Vidu Key — 用于 Vidu 视频生成
+  // Vidu API — 独立的视频生成 API（需单独配置）
   if (config.viduKey) {
     keys.viduKey = config.viduKey;
   }

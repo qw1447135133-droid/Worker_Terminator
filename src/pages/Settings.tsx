@@ -147,7 +147,7 @@ const Settings = () => {
   const keyFields = [
     { key: "zhanhuKey", label: "Gemini API Key（站狐）", desc: "用于剧本拆解与分镜图 AI 生成" },
     { key: "seedance", label: "Seedance API Key（站狐）", desc: "用于视频片段生成" },
-    { key: "viduKey", label: "Vidu API Key（站狐）", desc: "用于视频生成（Vidu 模型）" },
+    { key: "viduKey", label: "Vidu API Key", desc: "用于 Vidu 视频生成" },
   ];
 
   const supabaseFields = [
@@ -347,8 +347,9 @@ const Settings = () => {
             <ul className="text-sm text-muted-foreground space-y-1">
               <li>• <strong>本地存储</strong>: 数据保存在浏览器 localStorage 中，无需额外配置</li>
               <li>• <strong>云端存储</strong>: 通过 Supabase 将项目数据同步到云端，支持多设备访问</li>
-              <li>• <strong>站狐 API</strong>: 用于 AI 剧本拆解和分镜图生成</li>
-              <li>• <strong>Seedance API</strong>: 用于视频生成</li>
+              <li>• <strong>站狐 API (Gemini)</strong>: 用于 AI 剧本拆解和分镜图生成</li>
+              <li>• <strong>站狐 API (Seedance)</strong>: 用于视频生成</li>
+              <li>• <strong>Vidu API</strong>: 独立的视频生成 API（需单独配置）</li>
             </ul>
           </CardContent>
         </Card>

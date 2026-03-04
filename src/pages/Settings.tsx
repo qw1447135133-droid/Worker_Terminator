@@ -178,10 +178,17 @@ const Settings = () => {
       let headers: Record<string, string> = {};
 
       if (name === "gemini") {
-        // Test Gemini by listing models
         const base = endpoint || DEFAULT_CONFIG.zhanhuEndpoint;
-        const sep = base.includes("?") ? "&" : "?";
-        testUrl = `${base}/models${apiKey ? `${sep}key=${apiKey}` : ""}`;
+        const isProxy = base.includes("202.90.21.53");
+        const isGoogle = base.includes("generativelanguage.googleapis.com");
+        testUrl = `${base}/models`;
+        if (isProxy && apiKey) {
+          headers["Authorization"] = `Bearer ${apiKey}`;
+        } else if (isGoogle && apiKey) {
+          headers["x-goog-api-key"] = apiKey;
+        } else if (apiKey) {
+          testUrl = `${base}/models?key=${apiKey}`;
+        }
       } else if (name === "seedance") {
         // Test Seedance by listing models
         const base = (endpoint || DEFAULT_CONFIG.seedanceEndpoint).replace("/v1beta", "").replace(/\/v1\/?$/, "");

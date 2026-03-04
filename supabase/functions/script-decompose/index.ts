@@ -9,14 +9,15 @@ const corsHeaders = {
 const DEFAULT_GEMINI_BASE_URL = "http://202.90.21.53:13003/v1beta";
 
 function buildGeminiRequest(baseUrl: string, path: string, apiKey: string) {
-  const isDefaultProxy = baseUrl === DEFAULT_GEMINI_BASE_URL || baseUrl.includes("202.90.21.53");
+  const isGoogleOfficial = baseUrl.includes("generativelanguage.googleapis.com");
   const url = `${baseUrl}${path}`;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (isDefaultProxy) {
-    headers["Authorization"] = `Bearer ${apiKey}`;
-  } else {
+  if (isGoogleOfficial) {
     headers["x-goog-api-key"] = apiKey;
+  } else {
+    headers["Authorization"] = `Bearer ${apiKey}`;
   }
+  console.log(`buildGeminiRequest: endpoint=${baseUrl}, keyLen=${apiKey?.length}, authMethod=${isGoogleOfficial ? "x-goog-api-key" : "Bearer"}`);
   return { url, headers };
 }
 

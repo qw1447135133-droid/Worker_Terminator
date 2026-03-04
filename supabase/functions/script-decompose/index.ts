@@ -89,14 +89,13 @@ serve(async (req) => {
 
   console.log(`script-decompose streaming, model: ${model}, endpoint: ${baseUrl}`);
 
-  // Use streamGenerateContent for real-time token streaming
-  const { url: apiUrl, headers: apiHeaders } = buildGeminiRequest(baseUrl, `/models/${model}:streamGenerateContent?alt=sse`, apiKey);
+  // Use generateContent instead of streamGenerateContent for faster response
+  const { url: apiUrl, headers: apiHeaders } = buildGeminiRequest(baseUrl, `/models/${model}:generateContent`, apiKey);
   const requestBody = JSON.stringify({
     contents: [{ role: "user", parts: [{ text: userText }] }],
     generationConfig: {
       temperature: 0.3,
-      maxOutputTokens: 65536,
-      responseMimeType: "application/json",
+      maxOutputTokens: 8192, // 减少到合理范围
     },
   });
 
@@ -130,67 +129,25 @@ serve(async (req) => {
     );
   }
 
-  // Stream SSE from Gemini → forward text tokens to client as raw text chunks
-  const { readable, writable } = new TransformStream();
-  const writer = writable.getWriter();
-  const encoder = new TextEncoder();
+  // Non-streaming response - get full text at once
+  clearTimeout(timeoutId);
+  const geminiData = await geminiResponse.json();
+  const resultText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-  (async () => {
-    const reader = geminiResponse.body?.getReader();
-    if (!reader) {
-      clearTimeout(timeoutId);
-      await writer.write(encoder.encode(JSON.stringify({ error: "无响应流" }) + "\n"));
-      await writer.close();
-      return;
-    }
-
-    const decoder = new TextDecoder();
-    let sseBuffer = "";
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        sseBuffer += decoder.decode(value, { stream: true });
-
-        // Process SSE lines
-        let newlineIdx: number;
-        while ((newlineIdx = sseBuffer.indexOf("\n")) !== -1) {
-          const line = sseBuffer.slice(0, newlineIdx).trim();
+  return new Response(resultText, {
+    headers: { ...corsHeaders, "Content-Type": "text/plain; charset=utf-8" },
+  });
           sseBuffer = sseBuffer.slice(newlineIdx + 1);
-
-          if (!line.startsWith("data: ")) continue;
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === "[DONE]") continue;
-
-          try {
-            const chunk = JSON.parse(jsonStr);
-            const parts = chunk?.candidates?.[0]?.content?.parts || [];
-            for (const part of parts) {
-              if (part.thought) continue; // skip thinking tokens
-              if (part.text) {
-                // Forward raw text token to client
-                await writer.write(encoder.encode(part.text));
-              }
-            }
-          } catch {
-            // Incomplete JSON in SSE, skip
-          }
         }
       }
     } catch (err) {
       console.error("Stream read error:", err);
-      try {
-        await writer.write(encoder.encode("\n" + JSON.stringify({ error: "流读取异常" })));
-      } catch {}
     } finally {
       clearTimeout(timeoutId);
-      try { await writer.close(); } catch {}
     }
   })();
 
-  return new Response(readable, {
+  return new Response(resultText, {
     headers: { ...corsHeaders, "Content-Type": "text/plain; charset=utf-8" },
   });
 });

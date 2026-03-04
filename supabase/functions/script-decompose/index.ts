@@ -20,9 +20,10 @@ function buildGeminiRequest(baseUrl: string, path: string, apiKey: string) {
     url = `${baseUrl}${path}`;
     headers["x-goog-api-key"] = apiKey;
   } else {
-    url = `${baseUrl}${path}?key=${apiKey}`;
+    const separator = path.includes("?") ? "&" : "?";
+    url = `${baseUrl}${path}${separator}key=${apiKey}`;
   }
-  console.log(`buildGeminiRequest: endpoint=${baseUrl}, keyLen=${apiKey?.length}, authMethod=${isDefaultProxy ? "Bearer" : isGoogleOfficial ? "x-goog-api-key" : "query-param"}`);
+  console.log(`buildGeminiRequest: endpoint=${baseUrl}, keyLen=${apiKey?.length}, authMethod=${isDefaultProxy ? "Bearer" : isGoogleOfficial ? "x-goog-api-key" : "query-param"}, url=${url}`);
   return { url, headers };
 }
 

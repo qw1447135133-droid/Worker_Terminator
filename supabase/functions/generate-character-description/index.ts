@@ -10,9 +10,13 @@ const DEFAULT_GEMINI_BASE_URL = "http://202.90.21.53:13003/v1beta";
 
 function buildGeminiRequest(baseUrl: string, path: string, apiKey: string) {
   const isDefaultProxy = baseUrl === DEFAULT_GEMINI_BASE_URL || baseUrl.includes("202.90.21.53");
-  const url = isDefaultProxy ? `${baseUrl}${path}` : `${baseUrl}${path}${path.includes("?") ? "&" : "?"}key=${apiKey}`;
+  const url = `${baseUrl}${path}`;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (isDefaultProxy) headers["Authorization"] = `Bearer ${apiKey}`;
+  if (isDefaultProxy) {
+    headers["Authorization"] = `Bearer ${apiKey}`;
+  } else {
+    headers["x-goog-api-key"] = apiKey;
+  }
   return { url, headers };
 }
 

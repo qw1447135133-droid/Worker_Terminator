@@ -4,6 +4,7 @@ import { ArrowLeft, Key, Save, Database, HardDrive, Cloud, Globe, RotateCcw, Tra
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +14,8 @@ export type StorageMode = "local" | "cloud";
 export interface ApiConfig {
   // 存储模式
   storageMode: StorageMode;
+  // 直连模式（绕过 Edge Function 代理）
+  directMode: boolean;
   // Supabase 配置
   supabaseUrl: string;
   supabaseKey: string;
@@ -50,6 +53,7 @@ const SENSITIVE_KEYS: (keyof ApiConfig)[] = ["zhanhuKey", "seedance", "viduKey",
 
 const DEFAULT_CONFIG: ApiConfig = {
   storageMode: "local",
+  directMode: false,
   supabaseUrl: "",
   supabaseKey: "",
   zhanhuKey: "",
@@ -79,9 +83,9 @@ export function saveApiConfig(config: Partial<ApiConfig>): void {
   const current = getApiConfig();
   const updated = { ...current, ...config };
   // Obfuscate sensitive fields before storing
-  const toStore = { ...updated };
+  const toStore = { ...updated } as any;
   for (const key of SENSITIVE_KEYS) {
-    if (toStore[key]) (toStore as any)[key] = obfuscate(toStore[key]);
+    if (toStore[key] && typeof toStore[key] === "string") toStore[key] = obfuscate(toStore[key]);
   }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(toStore));
 }
@@ -243,7 +247,7 @@ const Settings = () => {
                       <div className="relative mt-1">
                         <Input
                           type="password"
-                          value={isEditing || !isSensitive ? (config[f.key as keyof ApiConfig] || "") : (hasValue ? "••••••••" : "")}
+                          value={isEditing || !isSensitive ? (String(config[f.key as keyof ApiConfig] || "")) : (hasValue ? "••••••••" : "")}
                           onChange={(e) => setConfig((p) => ({ ...p, [f.key]: e.target.value }))}
                           onFocus={() => { if (isSensitive) { setEditingField(f.key); setConfig((p) => ({ ...p, [f.key]: "" })); } }}
                           onBlur={() => setEditingField(null)}
@@ -278,6 +282,37 @@ const Settings = () => {
             </Card>
           </div>
         )}
+
+        {/* 直连模式 */}
+        <div className="space-y-4">
+          <h2 className="text-sm font-medium flex items-center gap-2">
+            <Globe className="h-4 w-4" />
+            网络模式
+          </h2>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">直连模式</Label>
+                  <p className="text-xs text-muted-foreground">
+                    绕过 Edge Function 代理，从浏览器直接调用 API。适用于端点为 HTTPS 且支持 CORS 的情况，或使用内网 HTTP 端点时。
+                  </p>
+                </div>
+                <Switch
+                  checked={config.directMode ?? false}
+                  onCheckedChange={(checked) => setConfig((p) => ({ ...p, directMode: checked }))}
+                />
+              </div>
+              {config.directMode && (
+                <div className="mt-3 p-3 rounded-md bg-yellow-500/10 border border-yellow-500/30">
+                  <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                    ⚠️ 直连模式下，浏览器直接调用 API 端点。请确保端点支持 CORS 且网络可达。HTTP 端点仅在本地开发时可用（HTTPS 页面会阻止混合内容）。
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
         {/* API 端点配置 */}
         <div className="space-y-4">
@@ -359,7 +394,7 @@ const Settings = () => {
                   return (
                     <Input
                       type="password"
-                      value={isEditing ? (config[f.key as keyof ApiConfig] || "") : (hasValue ? "••••••••" : "")}
+                      value={isEditing ? String(config[f.key as keyof ApiConfig] || "") : (hasValue ? "••••••••" : "")}
                       onChange={(e) => setConfig((p) => ({ ...p, [f.key]: e.target.value }))}
                       onFocus={() => { setEditingField(f.key); setConfig((p) => ({ ...p, [f.key]: "" })); }}
                       onBlur={() => setEditingField(null)}

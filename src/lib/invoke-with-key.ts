@@ -619,15 +619,18 @@ async function localGenerateVideo(body: any) {
     };
 
     if (body.imageUrl && typeof body.imageUrl === "string") {
-      let imageUrlForApi = body.imageUrl;
-      // If it's a data URL, upload to storage first to get a public URL
-      if (imageUrlForApi.startsWith("data:")) {
-        const [meta, b64] = imageUrlForApi.split(",");
-        const mime = meta.match(/data:(.*?);/)?.[1] || "image/png";
-        imageUrlForApi = await uploadImageToStorage(b64, mime, "video-frames");
+      let b64Data: string | null = null;
+      if (body.imageUrl.startsWith("data:")) {
+        // Extract raw base64 from data URI
+        b64Data = body.imageUrl.split(",")[1] || null;
+      } else {
+        // Download the image and convert to base64 (Seedance server can't access external URLs)
+        const fetched = await fetchImageAsBase64(body.imageUrl);
+        if (fetched) b64Data = fetched.data;
       }
-      // Ensure the URL is publicly accessible — if it's a Supabase storage URL it should be
-      fields.first_frame_image = imageUrlForApi;
+      if (b64Data) {
+        fields.first_frame_image = b64Data;
+      }
     }
 
     const boundary = `----FormBoundary${Date.now()}${Math.random().toString(36).slice(2)}`;

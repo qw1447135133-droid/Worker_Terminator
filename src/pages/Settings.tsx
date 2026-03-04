@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Key, Save, Database, HardDrive, Cloud, Globe, RotateCcw, Trash2 } from "lucide-react";
+import { ArrowLeft, Key, Save, Database, HardDrive, Cloud, Globe, RotateCcw, Trash2, Wifi, WifiOff, Loader2 } from "lucide-react";
+import { proxiedFetch } from "@/lib/gemini-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -104,6 +105,10 @@ const Settings = () => {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
+  // API connectivity test state
+  const [endpointTesting, setEndpointTesting] = useState<Record<string, boolean>>({});
+  const [endpointResults, setEndpointResults] = useState<Record<string, { success: boolean; message: string }>>({});
+
   // For sensitive fields, we track whether user is actively editing (show real value) or not (show mask)
   const [editingField, setEditingField] = useState<string | null>(null);
 
@@ -154,6 +159,56 @@ const Settings = () => {
       setTestResult({ success: false, message: `连接失败: ${err.message}` });
     } finally {
       setTesting(false);
+    }
+  };
+
+  const handleTestEndpoint = async (name: string, endpoint: string, apiKey: string) => {
+    setEndpointTesting((p) => ({ ...p, [name]: true }));
+    setEndpointResults((p) => {
+      const next = { ...p };
+      delete next[name];
+      return next;
+    });
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+
+    try {
+      let testUrl: string;
+      let headers: Record<string, string> = {};
+
+      if (name === "gemini") {
+        // Test Gemini by listing models
+        const base = endpoint || DEFAULT_CONFIG.zhanhuEndpoint;
+        const sep = base.includes("?") ? "&" : "?";
+        testUrl = `${base}/models${apiKey ? `${sep}key=${apiKey}` : ""}`;
+      } else if (name === "seedance") {
+        // Test Seedance by listing models
+        const base = (endpoint || DEFAULT_CONFIG.seedanceEndpoint).replace("/v1beta", "").replace(/\/v1\/?$/, "");
+        testUrl = `${base}/v1/models`;
+        if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+      } else {
+        // Vidu — simple GET
+        testUrl = endpoint || DEFAULT_CONFIG.viduEndpoint;
+        if (apiKey) headers["Authorization"] = `Token ${apiKey}`;
+      }
+
+      const resp = await proxiedFetch(testUrl, headers, undefined, controller.signal);
+      clearTimeout(timeout);
+
+      if (resp.ok || resp.status === 401 || resp.status === 403) {
+        // 401/403 means server is reachable but auth failed — connectivity is OK
+        const msg = resp.ok ? "连接成功 ✓" : `服务器可达（${resp.status}），请检查 API Key`;
+        setEndpointResults((p) => ({ ...p, [name]: { success: resp.ok, message: msg } }));
+      } else {
+        setEndpointResults((p) => ({ ...p, [name]: { success: false, message: `服务器返回 ${resp.status}` } }));
+      }
+    } catch (e: any) {
+      clearTimeout(timeout);
+      const msg = e.name === "AbortError" ? "连接超时（15s）" : `连接失败: ${e.message?.slice(0, 60)}`;
+      setEndpointResults((p) => ({ ...p, [name]: { success: false, message: msg } }));
+    } finally {
+      setEndpointTesting((p) => ({ ...p, [name]: false }));
     }
   };
 
@@ -341,36 +396,51 @@ const Settings = () => {
               <CardDescription>可自定义 API 端点地址（高级选项）</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <Label className="text-sm">Gemini API 端点</Label>
-                <Input
-                  value={config.zhanhuEndpoint || ""}
-                  onChange={(e) => setConfig((p) => ({ ...p, zhanhuEndpoint: e.target.value }))}
-                  placeholder="https://api.minimaxi.com/anthropic"
-                  className="font-mono text-sm mt-1"
-                />
-                <p className="text-xs text-muted-foreground mt-1">只需填写 Base URL，路径会自动拼接。例如：<code className="bg-muted px-1 rounded">https://api.apifox.com/v1beta</code></p>
-              </div>
-              <div>
-                <Label className="text-sm">Seedance API 端点</Label>
-                <Input
-                  value={config.seedanceEndpoint || ""}
-                  onChange={(e) => setConfig((p) => ({ ...p, seedanceEndpoint: e.target.value }))}
-                  placeholder="https://api.minimax.chat/v1"
-                  className="font-mono text-sm mt-1"
-                />
-                <p className="text-xs text-muted-foreground mt-1">只需填写 Base URL，如 <code className="bg-muted px-1 rounded">{`{base}/v1/videos`}</code> 会自动拼接</p>
-              </div>
-              <div>
-                <Label className="text-sm">Vidu API 端点</Label>
-                <Input
-                  value={config.viduEndpoint || ""}
-                  onChange={(e) => setConfig((p) => ({ ...p, viduEndpoint: e.target.value }))}
-                  placeholder="https://api.genmo.ai/v1"
-                  className="font-mono text-sm mt-1"
-                />
-                <p className="text-xs text-muted-foreground mt-1">只需填写 Base URL，路径会自动拼接</p>
-              </div>
+              {[
+                { name: "gemini", label: "Gemini API 端点", configKey: "zhanhuEndpoint" as const, apiKeyField: "zhanhuKey" as const, placeholder: "https://api.apifox.com/v1beta", hint: "只需填写 Base URL，路径会自动拼接" },
+                { name: "seedance", label: "Seedance API 端点", configKey: "seedanceEndpoint" as const, apiKeyField: "seedance" as const, placeholder: "https://api.minimax.chat/v1", hint: "只需填写 Base URL，如 {base}/videos 会自动拼接" },
+                { name: "vidu", label: "Vidu API 端点", configKey: "viduEndpoint" as const, apiKeyField: "viduKey" as const, placeholder: "https://api.genmo.ai/v1", hint: "只需填写 Base URL，路径会自动拼接" },
+              ].map((ep) => {
+                const isTesting = endpointTesting[ep.name];
+                const result = endpointResults[ep.name];
+                return (
+                  <div key={ep.name}>
+                    <Label className="text-sm">{ep.label}</Label>
+                    <div className="flex gap-2 mt-1">
+                      <Input
+                        value={config[ep.configKey] || ""}
+                        onChange={(e) => setConfig((p) => ({ ...p, [ep.configKey]: e.target.value }))}
+                        placeholder={ep.placeholder}
+                        className="font-mono text-sm flex-1"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0 gap-1.5 h-9"
+                        disabled={isTesting}
+                        onClick={() => handleTestEndpoint(ep.name, config[ep.configKey], config[ep.apiKeyField])}
+                      >
+                        {isTesting ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : result?.success ? (
+                          <Wifi className="h-3.5 w-3.5 text-emerald-500" />
+                        ) : result ? (
+                          <WifiOff className="h-3.5 w-3.5 text-destructive" />
+                        ) : (
+                          <Wifi className="h-3.5 w-3.5" />
+                        )}
+                        {isTesting ? "测试中" : "测试"}
+                      </Button>
+                    </div>
+                    {result && (
+                      <p className={`text-xs mt-1 ${result.success ? "text-emerald-500" : "text-destructive"}`}>
+                        {result.message}
+                      </p>
+                    )}
+                    {!result && <p className="text-xs text-muted-foreground mt-1">{ep.hint}</p>}
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
         </div>

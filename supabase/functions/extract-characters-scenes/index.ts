@@ -8,6 +8,15 @@ const corsHeaders = {
 
 const DEFAULT_GEMINI_BASE_URL = "http://202.90.21.53:13003/v1beta";
 
+/** Build URL and headers based on endpoint type */
+function buildGeminiRequest(baseUrl: string, path: string, apiKey: string) {
+  const isDefaultProxy = baseUrl === DEFAULT_GEMINI_BASE_URL || baseUrl.includes("202.90.21.53");
+  const url = isDefaultProxy ? `${baseUrl}${path}` : `${baseUrl}${path}${path.includes("?") ? "&" : "?"}key=${apiKey}`;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (isDefaultProxy) headers["Authorization"] = `Bearer ${apiKey}`;
+  return { url, headers };
+}
+
 const EXTRACTION_PROMPT = `你是一位专业影视制作分析师，擅长从剧本中精确提取角色和场景信息。
 
 你的任务是仔细阅读用户提供的剧本，提取所有角色和场景设定。
@@ -111,7 +120,7 @@ async function extractCharactersAndScenes(body: any) {
 
   console.log(`extract-characters-scenes using model: ${model}, endpoint: ${baseUrl}`);
 
-  const apiUrl = `${baseUrl}/models/${model}:generateContent/`;
+  const { url: apiUrl, headers: apiHeaders } = buildGeminiRequest(baseUrl, `/models/${model}:generateContent/`, apiKey);
   const requestBody = JSON.stringify({
     contents: [
       { role: "user", parts: [{ text: promptText }] },
@@ -130,7 +139,7 @@ async function extractCharactersAndScenes(body: any) {
   try {
     geminiResponse = await fetch(apiUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+      headers: apiHeaders,
       body: requestBody,
       signal: controller.signal,
     });

@@ -8,6 +8,14 @@ const corsHeaders = {
 
 const DEFAULT_GEMINI_BASE_URL = "http://202.90.21.53:13003/v1beta";
 
+function buildGeminiRequest(baseUrl: string, path: string, apiKey: string) {
+  const isDefaultProxy = baseUrl === DEFAULT_GEMINI_BASE_URL || baseUrl.includes("202.90.21.53");
+  const url = isDefaultProxy ? `${baseUrl}${path}` : `${baseUrl}${path}${path.includes("?") ? "&" : "?"}key=${apiKey}`;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (isDefaultProxy) headers["Authorization"] = `Bearer ${apiKey}`;
+  return { url, headers };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -106,19 +114,16 @@ Write in vivid, detail-rich English that can be used directly as an AI image gen
   console.log(`generate-scene-description using model: ${useModel}, thinking: ${isThinking}`);
 
   const baseUrl = geminiEndpoint || DEFAULT_GEMINI_BASE_URL;
+  const { url: apiUrl, headers: apiHeaders } = buildGeminiRequest(baseUrl, `/models/${useModel}:generateContent/`, ZHANHU_API_KEY);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
   let response: Response;
 
   try {
-    response = await fetch(
-      `${baseUrl}/models/${useModel}:generateContent/`,
+    response = await fetch(apiUrl,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${ZHANHU_API_KEY}`,
-        },
+        headers: apiHeaders,
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\n${userContent}` }] }],
           ...(Object.keys(generationConfig).length > 0 ? { generationConfig } : {}),

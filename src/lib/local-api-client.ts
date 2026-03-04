@@ -68,7 +68,7 @@ export async function callLocalVideoApi<T = any>(
   const endpoint = config.seedanceEndpoint || "https://api.minimax.chat/v1";
   const timeout = options.timeout || 600_000;
 
-  if (!config.seedanceKey) {
+  if (!config.seedance) {
     throw new Error("请先在设置中配置 Seedance API Key");
   }
 
@@ -80,7 +80,7 @@ export async function callLocalVideoApi<T = any>(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${config.seedanceKey}`,
+        "Authorization": `Bearer ${config.seedance}`,
       },
       body: JSON.stringify(body),
       signal: controller.signal,

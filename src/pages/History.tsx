@@ -4,6 +4,16 @@ import { ArrowLeft, Film, Clock, Trash2, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSmartPersistence } from "@/hooks/use-smart-persistence";
 import { STEP_LABELS, type WorkspaceStep } from "@/types/project";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface ProjectSummary {
   id: string;
@@ -18,6 +28,7 @@ const History = () => {
   const { listProjects, deleteProject } = useSmartPersistence();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<ProjectSummary | null>(null);
 
   const fetchProjects = async () => {
     setLoading(true);
@@ -30,10 +41,16 @@ const History = () => {
     fetchProjects();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
+  const handleDelete = (project: ProjectSummary, e: React.MouseEvent) => {
     e.stopPropagation();
-    const ok = await deleteProject(id);
-    if (ok) setProjects((prev) => prev.filter((p) => p.id !== id));
+    setDeleteTarget(project);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const ok = await deleteProject(deleteTarget.id);
+    if (ok) setProjects((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+    setDeleteTarget(null);
   };
 
   const formatDate = (dateStr: string) => {
@@ -94,7 +111,7 @@ const History = () => {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
-                    onClick={(e) => handleDelete(project.id, e)}
+                    onClick={(e) => handleDelete(project, e)}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -105,6 +122,22 @@ const History = () => {
           </div>
         )}
       </main>
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除项目「{deleteTarget?.title}」吗？此操作无法撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

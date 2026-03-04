@@ -24,7 +24,7 @@ export async function invokeStreamingFunction<T = any>(
         "Authorization": `Bearer ${supabaseKey}`,
         "apikey": supabaseKey,
       },
-      body: JSON.stringify(buildFetchBodyWithKeys(functionName, body)),
+      body: JSON.stringify(buildFetchBodyWithKeys(body)),
       signal: controller.signal,
     });
 

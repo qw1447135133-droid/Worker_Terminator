@@ -270,6 +270,40 @@ const Settings = () => {
           </div>
         )}
 
+        {/* API 端点配置 */}
+        <div className="space-y-4">
+          <h2 className="text-sm font-medium flex items-center gap-2">
+            <Globe className="h-4 w-4" />
+            API 端点配置
+          </h2>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">自定义端点</CardTitle>
+              <CardDescription>可自定义 API 端点地址（高级选项）</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label className="text-sm">站狐 API 端点</Label>
+                <Input
+                  value={config.zhanhuEndpoint || ""}
+                  onChange={(e) => setConfig((p) => ({ ...p, zhanhuEndpoint: e.target.value }))}
+                  placeholder="https://api.minimaxi.com/anthropic"
+                  className="font-mono text-sm mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-sm">Seedance API 端点</Label>
+                <Input
+                  value={config.seedanceEndpoint || ""}
+                  onChange={(e) => setConfig((p) => ({ ...p, seedanceEndpoint: e.target.value }))}
+                  placeholder="https://api.minimax.chat/v1"
+                  className="font-mono text-sm mt-1"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* AI API Keys */}
         <div className="space-y-4">
           <h2 className="text-sm font-medium flex items-center gap-2">
@@ -304,40 +338,6 @@ const Settings = () => {
               </CardContent>
             </Card>
           ))}
-        </div>
-
-        {/* API 端点配置 */}
-        <div className="space-y-4">
-          <h2 className="text-sm font-medium flex items-center gap-2">
-            <Globe className="h-4 w-4" />
-            API 端点配置
-          </h2>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">自定义端点</CardTitle>
-              <CardDescription>可自定义 API 端点地址（高级选项）</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label className="text-sm">站狐 API 端点</Label>
-                <Input
-                  value={config.zhanhuEndpoint || ""}
-                  onChange={(e) => setConfig((p) => ({ ...p, zhanhuEndpoint: e.target.value }))}
-                  placeholder="https://api.minimaxi.com/anthropic"
-                  className="font-mono text-sm mt-1"
-                />
-              </div>
-              <div>
-                <Label className="text-sm">Seedance API 端点</Label>
-                <Input
-                  value={config.seedanceEndpoint || ""}
-                  onChange={(e) => setConfig((p) => ({ ...p, seedanceEndpoint: e.target.value }))}
-                  placeholder="https://api.minimax.chat/v1"
-                  className="font-mono text-sm mt-1"
-                />
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
         {/* 说明 */}

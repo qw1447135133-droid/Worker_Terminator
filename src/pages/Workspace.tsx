@@ -285,7 +285,7 @@ const Workspace = () => {
             "Authorization": `Bearer ${supabaseKey}`,
             "apikey": supabaseKey,
           },
-          body: JSON.stringify(buildFetchBodyWithKeys("extract-characters-scenes", { script, model: decomposeModel })),
+          body: JSON.stringify(buildFetchBodyWithKeys({ script, model: decomposeModel })),
           signal: controller.signal,
         });
 
@@ -347,7 +347,7 @@ const Workspace = () => {
             "Authorization": `Bearer ${supabaseKey}`,
             "apikey": supabaseKey,
           },
-          body: JSON.stringify(buildFetchBodyWithKeys("script-decompose", { script, systemPrompt, model: decomposeModel })),
+          body: JSON.stringify(buildFetchBodyWithKeys({ script, systemPrompt, model: decomposeModel })),
           signal: controller.signal,
         });
 
@@ -611,7 +611,7 @@ const Workspace = () => {
           "Authorization": `Bearer ${supabaseKey}`,
           "apikey": supabaseKey,
         },
-        body: JSON.stringify(buildFetchBodyWithKeys("generate-storyboard", {
+        body: JSON.stringify(buildFetchBodyWithKeys({
           description: scene.description,
           characters: scene.characters,
           characterDescriptions: charDescs,

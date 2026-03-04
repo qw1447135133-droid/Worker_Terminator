@@ -701,22 +701,23 @@ const Workspace = () => {
   const pollVideoTask = async (sceneId: string, taskId: string, provider?: string) => {
     const maxAttempts = 120; // 10 min max
     let attempts = 0;
+    let consecutiveErrors = 0;
+    const maxConsecutiveErrors = 5;
 
     const poll = async () => {
       attempts++;
       try {
         const { data, error } = await invokeFunction("generate-video", { action: "status", taskId, provider });
         if (error) throw error;
+        consecutiveErrors = 0; // reset on success
 
         const status = data?.status;
 
         if (status === "completed" || status === "succeeded") {
-          // Extract video URL from response
           const videoUrl = data?.video_url || data?.output?.video_url || data?.result?.url || data?.url;
           setScenes((prev) =>
             prev.map((s) => {
               if (s.id !== sceneId) return s;
-              // Save old video to history before replacing
               const history = [...(s.videoHistory || [])];
               if (s.videoUrl && !history.some((h) => h.videoUrl === s.videoUrl)) {
                 history.push({ videoUrl: s.videoUrl, createdAt: new Date().toISOString() });
@@ -740,7 +741,6 @@ const Workspace = () => {
           return;
         }
 
-        // Still processing — update status and continue polling
         setScenes((prev) =>
           prev.map((s) => (s.id === sceneId ? { ...s, videoStatus: status || "processing" } : s))
         );
@@ -748,12 +748,23 @@ const Workspace = () => {
         if (attempts < maxAttempts) {
           setTimeout(poll, 5000);
         } else {
-          toast({ title: "⏳ 视频生成超时", description: "视频生成时间过长，请稍后刷新页面查看是否已完成。", variant: "destructive" });
+          setScenes((prev) =>
+            prev.map((s) => s.id === sceneId ? { ...s, videoStatus: "failed", videoTaskId: undefined } : s)
+          );
+          toast({ title: "⏳ 视频生成超时", description: "视频生成时间过长，请稍后刷新页面查看。", variant: "destructive" });
         }
       } catch (e: any) {
         console.error("Poll error:", e);
+        consecutiveErrors++;
+        if (consecutiveErrors >= maxConsecutiveErrors) {
+          setScenes((prev) =>
+            prev.map((s) => s.id === sceneId ? { ...s, videoStatus: "failed", videoTaskId: undefined } : s)
+          );
+          toast({ title: "网络连接失败", description: "连续多次无法连接视频服务器，请检查网络后重试。", variant: "destructive" });
+          return;
+        }
         if (attempts < maxAttempts) {
-          setTimeout(poll, 5000);
+          setTimeout(poll, 10000); // longer delay on error
         }
       }
     };

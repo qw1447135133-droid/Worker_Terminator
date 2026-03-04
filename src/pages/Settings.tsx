@@ -23,6 +23,7 @@ export interface ApiConfig {
   // API 端点
   zhanhuEndpoint: string;
   seedanceEndpoint: string;
+  viduEndpoint: string;
 }
 
 const STORAGE_KEY = "storyforge_api_config";
@@ -49,6 +50,7 @@ const DEFAULT_CONFIG: ApiConfig = {
   viduKey: "",
   zhanhuEndpoint: "https://api.minimaxi.com/anthropic",
   seedanceEndpoint: "https://api.minimax.chat/v1",
+  viduEndpoint: "https://api.genmo.ai/v1",
 };
 
 export function getApiConfig(): ApiConfig {
@@ -297,6 +299,15 @@ const Settings = () => {
                   value={config.seedanceEndpoint || ""}
                   onChange={(e) => setConfig((p) => ({ ...p, seedanceEndpoint: e.target.value }))}
                   placeholder="https://api.minimax.chat/v1"
+                  className="font-mono text-sm mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-sm">Vidu API 端点</Label>
+                <Input
+                  value={config.viduEndpoint || ""}
+                  onChange={(e) => setConfig((p) => ({ ...p, viduEndpoint: e.target.value }))}
+                  placeholder="https://api.genmo.ai/v1"
                   className="font-mono text-sm mt-1"
                 />
               </div>

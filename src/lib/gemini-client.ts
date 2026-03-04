@@ -11,11 +11,11 @@ export const VIDU_BASE_URL = "https://api.vidu.cn";
 
 const PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/api-proxy`;
 
-// ===== Proxied Fetch =====
+// ===== Proxied / Direct Fetch =====
 
 /**
- * All external API calls go through the proxy Edge Function
- * to avoid HTTPS→HTTP mixed content and CORS issues.
+ * Smart fetch: uses proxy Edge Function or direct fetch based on directMode setting.
+ * Direct mode bypasses the proxy — useful when endpoints support CORS or are on a local network.
  */
 export async function proxiedFetch(
   targetUrl: string,
@@ -23,6 +23,25 @@ export async function proxiedFetch(
   body?: string,
   signal?: AbortSignal,
 ): Promise<Response> {
+  const config = getApiConfig();
+
+  if (config.directMode) {
+    // Direct mode: call the API endpoint directly from the browser
+    const headers: Record<string, string> = {
+      ...targetHeaders,
+    };
+    if (!headers["Content-Type"] && body) {
+      headers["Content-Type"] = "application/json";
+    }
+    return fetch(targetUrl, {
+      method: body ? "POST" : "GET",
+      headers,
+      body,
+      signal,
+    });
+  }
+
+  // Proxy mode: route through Edge Function
   const proxyHeaders: Record<string, string> = {
     "Content-Type": "application/json",
     "x-target-url": targetUrl,
@@ -154,8 +173,9 @@ export async function extractImageBase64(data: any): Promise<{ base64: string; m
 
 export async function fetchImageAsBase64(url: string): Promise<{ data: string; mimeType: string } | null> {
   try {
-    // Use proxy for HTTP URLs to avoid mixed content issues
-    const needsProxy = url.startsWith("http://");
+    const config = getApiConfig();
+    // Use proxy for HTTP URLs to avoid mixed content issues (unless direct mode)
+    const needsProxy = !config.directMode && url.startsWith("http://");
     const resp = needsProxy
       ? await proxiedFetch(url, {}, undefined)
       : await fetch(url);

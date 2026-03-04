@@ -612,46 +612,129 @@ async function localGenerateVideo(body: any) {
     if (!apiKey) throw new Error("Seedance API Key 未配置，请在设置中配置");
 
     // Build multipart/form-data as the API requires
-    const fields: Record<string, string> = {
+    const textFields: Record<string, string> = {
       model: model || "doubao-seedance-1-5-pro_1080p",
       prompt: body.prompt,
       seconds: String(Math.max(4, Math.min(15, Number(body.duration) || 5))),
       size: body.aspectRatio || "16:9",
     };
 
+    // Prepare image binary data if available
+    let imageBlob: Blob | null = null;
+    let imageMimeType = "image/jpeg";
+
     if (body.imageUrl && typeof body.imageUrl === "string") {
       let imageDataUri: string | null = null;
       if (body.imageUrl.startsWith("data:")) {
         imageDataUri = body.imageUrl;
       } else {
-        // Download the image and convert to data URI (Seedance server can't access external URLs)
         const fetched = await fetchImageAsBase64(body.imageUrl);
         if (fetched) {
           imageDataUri = `data:${fetched.mimeType};base64,${fetched.data}`;
         }
       }
       if (imageDataUri) {
-        // Compress to avoid proxy buffer overflow (max ~1MB, 720px)
+        // Compress to keep size reasonable (max ~800KB, 720px)
         try {
-          imageDataUri = await compressImage(imageDataUri, 1 * 1024 * 1024, { maxDim: 720, minQuality: 0.3 });
+          imageDataUri = await compressImage(imageDataUri, 800 * 1024, { maxDim: 720, minQuality: 0.3 });
         } catch (e) {
           console.warn("图片压缩失败，使用原图:", e);
         }
-        fields.first_frame_image = imageDataUri;
+        // Convert data URI to binary Blob
+        const match = imageDataUri.match(/^data:(image\/\w+);base64,(.+)$/);
+        if (match) {
+          imageMimeType = match[1];
+          const binaryStr = atob(match[2]);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+          imageBlob = new Blob([bytes], { type: imageMimeType });
+        }
       }
     }
 
-    const boundary = `----FormBoundary${Date.now()}${Math.random().toString(36).slice(2)}`;
-    let formBody = "";
-    for (const [key, value] of Object.entries(fields)) {
-      formBody += `--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${value}\r\n`;
+    // Build proper multipart/form-data using FormData for binary file support
+    const formData = new FormData();
+    for (const [key, value] of Object.entries(textFields)) {
+      formData.append(key, value);
     }
-    formBody += `--${boundary}--\r\n`;
+    if (imageBlob) {
+      const ext = imageMimeType === "image/png" ? "png" : "jpeg";
+      formData.append("first_frame_image", imageBlob, `frame.${ext}`);
+    }
 
-    const res = await proxiedFetch(`${endpoint}/videos`, {
+    // Use direct fetch through proxy with FormData (browser sets boundary automatically)
+    const config = getApiConfig();
+    const targetUrl = `${endpoint}/videos`;
+    const targetHeaders: Record<string, string> = {
       Authorization: `Bearer ${apiKey}`,
-      "Content-Type": `multipart/form-data; boundary=${boundary}`,
-    }, formBody);
+    };
+
+    // For FormData, we need to use the proxy differently - send as binary through proxy
+    const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/api-proxy`;
+    
+    let res: Response;
+    if (config.directMode) {
+      try {
+        res = await fetch(targetUrl, {
+          method: "POST",
+          headers: targetHeaders,
+          body: formData,
+        });
+      } catch {
+        // Fallback to proxy - but proxy can't handle binary FormData well,
+        // so try without image as last resort
+        console.warn("直连失败，通过代理重试（不含首帧图片）");
+        const fallbackFields = { ...textFields };
+        const boundary = `----FormBoundary${Date.now()}${Math.random().toString(36).slice(2)}`;
+        let fallbackBody = "";
+        for (const [key, value] of Object.entries(fallbackFields)) {
+          fallbackBody += `--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${value}\r\n`;
+        }
+        fallbackBody += `--${boundary}--\r\n`;
+        res = await proxiedFetch(targetUrl, {
+          ...targetHeaders,
+          "Content-Type": `multipart/form-data; boundary=${boundary}`,
+        }, fallbackBody);
+      }
+    } else {
+      // Through proxy: if we have an image, try sending without it to avoid buffer issues
+      // The proxy text-based approach can't handle large binary data
+      if (imageBlob) {
+        // Try direct fetch first for image support
+        try {
+          res = await fetch(targetUrl, {
+            method: "POST",
+            headers: targetHeaders,
+            body: formData,
+          });
+        } catch {
+          // If direct fails (mixed content), send via proxy without image
+          console.warn("直连失败（混合内容），通过代理发送（不含首帧图片）");
+          const boundary = `----FormBoundary${Date.now()}${Math.random().toString(36).slice(2)}`;
+          let fallbackBody = "";
+          for (const [key, value] of Object.entries(textFields)) {
+            fallbackBody += `--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${value}\r\n`;
+          }
+          fallbackBody += `--${boundary}--\r\n`;
+          res = await proxiedFetch(targetUrl, {
+            ...targetHeaders,
+            "Content-Type": `multipart/form-data; boundary=${boundary}`,
+          }, fallbackBody);
+        }
+      } else {
+        const boundary = `----FormBoundary${Date.now()}${Math.random().toString(36).slice(2)}`;
+        let formBody = "";
+        for (const [key, value] of Object.entries(textFields)) {
+          formBody += `--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${value}\r\n`;
+        }
+        formBody += `--${boundary}--\r\n`;
+        res = await proxiedFetch(targetUrl, {
+          ...targetHeaders,
+          "Content-Type": `multipart/form-data; boundary=${boundary}`,
+        }, formBody);
+      }
+    }
+
     if (!res.ok) {
       const errText = await res.text();
       throw new Error(`视频生成任务创建失败 (${res.status}): ${errText}`);

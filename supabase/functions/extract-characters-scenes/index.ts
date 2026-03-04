@@ -22,9 +22,10 @@ function buildGeminiRequest(baseUrl: string, path: string, apiKey: string) {
     headers["x-goog-api-key"] = apiKey;
   } else {
     // 第三方代理（Apifox 等）使用 query parameter
-    url = `${baseUrl}${path}?key=${apiKey}`;
+    const separator = path.includes("?") ? "&" : "?";
+    url = `${baseUrl}${path}${separator}key=${apiKey}`;
   }
-  console.log(`buildGeminiRequest: endpoint=${baseUrl}, keyLen=${apiKey?.length}, authMethod=${isDefaultProxy ? "Bearer" : isGoogleOfficial ? "x-goog-api-key" : "query-param"}`);
+  console.log(`buildGeminiRequest: endpoint=${baseUrl}, keyLen=${apiKey?.length}, authMethod=${isDefaultProxy ? "Bearer" : isGoogleOfficial ? "x-goog-api-key" : "query-param"}, url=${url}`);
   return { url, headers };
 }
 
@@ -131,7 +132,7 @@ async function extractCharactersAndScenes(body: any) {
 
   console.log(`extract-characters-scenes using model: ${model}, endpoint: ${baseUrl}`);
 
-  const { url: apiUrl, headers: apiHeaders } = buildGeminiRequest(baseUrl, `/models/${model}:generateContent/`, apiKey);
+  const { url: apiUrl, headers: apiHeaders } = buildGeminiRequest(baseUrl, `/models/${model}:generateContent`, apiKey);
   const requestBody = JSON.stringify({
     contents: [
       { role: "user", parts: [{ text: promptText }] },

@@ -20,9 +20,10 @@ function buildGeminiRequest(baseUrl: string, path: string, apiKey: string) {
     url = `${baseUrl}${path}`;
     headers["x-goog-api-key"] = apiKey;
   } else {
-    url = `${baseUrl}${path}?key=${apiKey}`;
+    const separator = path.includes("?") ? "&" : "?";
+    url = `${baseUrl}${path}${separator}key=${apiKey}`;
   }
-  console.log(`buildGeminiRequest: endpoint=${baseUrl}, keyLen=${apiKey?.length}, authMethod=${isDefaultProxy ? "Bearer" : isGoogleOfficial ? "x-goog-api-key" : "query-param"}`);
+  console.log(`buildGeminiRequest: endpoint=${baseUrl}, keyLen=${apiKey?.length}, authMethod=${isDefaultProxy ? "Bearer" : isGoogleOfficial ? "x-goog-api-key" : "query-param"}, url=${url}`);
   return { url, headers };
 }
 
@@ -124,7 +125,7 @@ Write in vivid, detail-rich English that can be used directly as an AI image gen
   console.log(`generate-scene-description using model: ${useModel}, thinking: ${isThinking}`);
 
   const baseUrl = geminiEndpoint || DEFAULT_GEMINI_BASE_URL;
-  const { url: apiUrl, headers: apiHeaders } = buildGeminiRequest(baseUrl, `/models/${useModel}:generateContent/`, ZHANHU_API_KEY);
+  const { url: apiUrl, headers: apiHeaders } = buildGeminiRequest(baseUrl, `/models/${useModel}:generateContent`, ZHANHU_API_KEY);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
   let response: Response;

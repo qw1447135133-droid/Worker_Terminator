@@ -21,9 +21,10 @@ function buildGeminiRequest(baseUrl: string, path: string, apiKey: string) {
     url = `${baseUrl}${path}`;
     headers["x-goog-api-key"] = apiKey;
   } else {
-    url = `${baseUrl}${path}?key=${apiKey}`;
+    const separator = path.includes("?") ? "&" : "?";
+    url = `${baseUrl}${path}${separator}key=${apiKey}`;
   }
-  console.log(`buildGeminiRequest: endpoint=${baseUrl}, keyLen=${apiKey?.length}, authMethod=${isDefaultProxy ? "Bearer" : isGoogleOfficial ? "x-goog-api-key" : "query-param"}`);
+  console.log(`buildGeminiRequest: endpoint=${baseUrl}, keyLen=${apiKey?.length}, authMethod=${isDefaultProxy ? "Bearer" : isGoogleOfficial ? "x-goog-api-key" : "query-param"}, url=${url}`);
   return { url, headers };
 }
 
@@ -543,7 +544,7 @@ Maintain environment consistency (lighting, architecture, props) based on the sc
       const geminiController = new AbortController();
       const geminiTimeout = setTimeout(() => geminiController.abort(), 280_000);
       const baseUrl = body.geminiEndpoint || DEFAULT_GEMINI_BASE_URL;
-      const { url: apiUrl, headers: apiHeaders } = buildGeminiRequest(baseUrl, `/models/${selectedModel}:generateContent/`, ZHANHU_API_KEY);
+      const { url: apiUrl, headers: apiHeaders } = buildGeminiRequest(baseUrl, `/models/${selectedModel}:generateContent`, ZHANHU_API_KEY);
       const response = await fetch(apiUrl, {
         method: "POST",
         headers: apiHeaders,

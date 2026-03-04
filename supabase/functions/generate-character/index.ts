@@ -13,6 +13,14 @@ const corsHeaders = {
 
 const DEFAULT_GEMINI_BASE_URL = "http://202.90.21.53:13003/v1beta";
 
+function buildGeminiRequest(baseUrl: string, path: string, apiKey: string) {
+  const isDefaultProxy = baseUrl === DEFAULT_GEMINI_BASE_URL || baseUrl.includes("202.90.21.53");
+  const url = isDefaultProxy ? `${baseUrl}${path}` : `${baseUrl}${path}${path.includes("?") ? "&" : "?"}key=${apiKey}`;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (isDefaultProxy) headers["Authorization"] = `Bearer ${apiKey}`;
+  return { url, headers };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -209,11 +217,11 @@ Each view should be labeled clearly. The character design must be consistent acr
       const tmout = setTimeout(() => ctrl.abort(), 200_000);
       try {
         const baseUrl = geminiEndpoint || DEFAULT_GEMINI_BASE_URL;
-        response = await fetch(
-          `${baseUrl}/models/${selectedModel}:generateContent/`,
+        const { url: apiUrl, headers: apiHeaders } = buildGeminiRequest(baseUrl, `/models/${selectedModel}:generateContent/`, ZHANHU_API_KEY);
+        response = await fetch(apiUrl,
           {
             method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${ZHANHU_API_KEY}` },
+            headers: apiHeaders,
             signal: ctrl.signal,
             body: requestBody,
           },

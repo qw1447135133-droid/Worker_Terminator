@@ -9,6 +9,14 @@ const corsHeaders = {
 
 const DEFAULT_GEMINI_BASE_URL = "http://202.90.21.53:13003/v1beta";
 
+function buildGeminiRequest(baseUrl: string, path: string, apiKey: string) {
+  const isDefaultProxy = baseUrl === DEFAULT_GEMINI_BASE_URL || baseUrl.includes("202.90.21.53");
+  const url = isDefaultProxy ? `${baseUrl}${path}` : `${baseUrl}${path}${path.includes("?") ? "&" : "?"}key=${apiKey}`;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (isDefaultProxy) headers["Authorization"] = `Bearer ${apiKey}`;
+  return { url, headers };
+}
+
 /** Fetch an image URL and return { mimeType, base64 } */
 async function fetchImageAsBase64(url: string): Promise<{ mimeType: string; data: string } | null> {
   try {
@@ -525,10 +533,10 @@ Maintain environment consistency (lighting, architecture, props) based on the sc
       const geminiController = new AbortController();
       const geminiTimeout = setTimeout(() => geminiController.abort(), 280_000);
       const baseUrl = body.geminiEndpoint || DEFAULT_GEMINI_BASE_URL;
-      const apiUrl = `${baseUrl}/models/${selectedModel}:generateContent/`;
+      const { url: apiUrl, headers: apiHeaders } = buildGeminiRequest(baseUrl, `/models/${selectedModel}:generateContent/`, ZHANHU_API_KEY);
       const response = await fetch(apiUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${ZHANHU_API_KEY}` },
+        headers: apiHeaders,
         body: JSON.stringify({
           contents: [{ role: "user", parts }],
           generationConfig: { responseModalities: ["IMAGE", "TEXT"], imageSize: "2K" },

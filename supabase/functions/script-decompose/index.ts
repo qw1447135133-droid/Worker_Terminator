@@ -8,6 +8,14 @@ const corsHeaders = {
 
 const DEFAULT_GEMINI_BASE_URL = "http://202.90.21.53:13003/v1beta";
 
+function buildGeminiRequest(baseUrl: string, path: string, apiKey: string) {
+  const isDefaultProxy = baseUrl === DEFAULT_GEMINI_BASE_URL || baseUrl.includes("202.90.21.53");
+  const url = isDefaultProxy ? `${baseUrl}${path}` : `${baseUrl}${path}${path.includes("?") ? "&" : "?"}key=${apiKey}`;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (isDefaultProxy) headers["Authorization"] = `Bearer ${apiKey}`;
+  return { url, headers };
+}
+
 const SYSTEM_PROMPT = `你是专业电影分镜师。将剧本拆解为AI视频生成用的15秒分段分镜脚本。
 
 规则：
@@ -71,7 +79,7 @@ serve(async (req) => {
   console.log(`script-decompose streaming, model: ${model}, endpoint: ${baseUrl}`);
 
   // Use streamGenerateContent for real-time token streaming
-  const apiUrl = `${baseUrl}/models/${model}:streamGenerateContent?alt=sse`;
+  const { url: apiUrl, headers: apiHeaders } = buildGeminiRequest(baseUrl, `/models/${model}:streamGenerateContent?alt=sse`, apiKey);
   const requestBody = JSON.stringify({
     contents: [{ role: "user", parts: [{ text: userText }] }],
     generationConfig: {
@@ -88,7 +96,7 @@ serve(async (req) => {
   try {
     geminiResponse = await fetch(apiUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+      headers: apiHeaders,
       body: requestBody,
       signal: controller.signal,
     });

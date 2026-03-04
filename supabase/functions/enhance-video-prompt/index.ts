@@ -8,6 +8,14 @@ const corsHeaders = {
 
 const DEFAULT_GEMINI_BASE_URL = "http://202.90.21.53:13003/v1beta";
 
+function buildGeminiRequest(baseUrl: string, path: string, apiKey: string) {
+  const isDefaultProxy = baseUrl === DEFAULT_GEMINI_BASE_URL || baseUrl.includes("202.90.21.53");
+  const url = isDefaultProxy ? `${baseUrl}${path}` : `${baseUrl}${path}${path.includes("?") ? "&" : "?"}key=${apiKey}`;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (isDefaultProxy) headers["Authorization"] = `Bearer ${apiKey}`;
+  return { url, headers };
+}
+
 const SYSTEM_PROMPT = `你是一位专业的影视视频生成提示词工程师。你的任务是将简短的分镜描述扩展为丰富、具体、富有画面感的视频生成提示词。
 
 ## 核心原则
@@ -112,11 +120,11 @@ serve(async (req) => {
     const userPrompt = parts.join("\n");
 
     const baseUrl = geminiEndpoint || DEFAULT_GEMINI_BASE_URL;
-    const response = await fetch(
-      `${baseUrl}/models/gemini-3-flash-preview:generateContent/`,
+    const { url: apiUrl, headers: apiHeaders } = buildGeminiRequest(baseUrl, `/models/gemini-3-flash-preview:generateContent/`, ZHANHU_API_KEY);
+    const response = await fetch(apiUrl,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${ZHANHU_API_KEY}` },
+        headers: apiHeaders,
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: `${SYSTEM_PROMPT}\n\n${userPrompt}` }] }],
         }),

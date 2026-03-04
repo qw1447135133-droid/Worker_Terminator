@@ -619,12 +619,15 @@ async function localGenerateVideo(body: any) {
     };
 
     if (body.imageUrl && typeof body.imageUrl === "string") {
-      if (body.imageUrl.startsWith("data:")) {
-        const [, b64] = body.imageUrl.split(",");
-        fields.first_frame_image = b64;
-      } else {
-        fields.first_frame_image = body.imageUrl;
+      let imageUrlForApi = body.imageUrl;
+      // If it's a data URL, upload to storage first to get a public URL
+      if (imageUrlForApi.startsWith("data:")) {
+        const [meta, b64] = imageUrlForApi.split(",");
+        const mime = meta.match(/data:(.*?);/)?.[1] || "image/png";
+        imageUrlForApi = await uploadImageToStorage(b64, mime, "video-frames");
       }
+      // Ensure the URL is publicly accessible — if it's a Supabase storage URL it should be
+      fields.first_frame_image = imageUrlForApi;
     }
 
     const boundary = `----FormBoundary${Date.now()}${Math.random().toString(36).slice(2)}`;

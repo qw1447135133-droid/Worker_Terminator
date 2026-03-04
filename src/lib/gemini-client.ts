@@ -265,7 +265,25 @@ export async function callSeedreamImage(
     watermark: false,
   };
   if (options.image && options.image.length > 0) {
-    payload.image = options.image;
+    // Convert URLs to base64 data URIs if needed, as external URLs may not be accessible by the API
+    const processedImages: string[] = [];
+    for (const img of options.image) {
+      if (img.startsWith("data:")) {
+        processedImages.push(img);
+      } else {
+        try {
+          const fetched = await fetchImageAsBase64(img);
+          if (fetched) {
+            processedImages.push(`data:${fetched.mimeType};base64,${fetched.data}`);
+          } else {
+            processedImages.push(img);
+          }
+        } catch {
+          processedImages.push(img);
+        }
+      }
+    }
+    payload.image = processedImages;
     payload.sequential_image_generation = "disabled";
   }
 

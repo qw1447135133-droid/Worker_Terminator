@@ -10,14 +10,17 @@ const DEFAULT_GEMINI_BASE_URL = "http://202.90.21.53:13003/v1beta";
 
 /** Build URL and headers based on endpoint type */
 function buildGeminiRequest(baseUrl: string, path: string, apiKey: string) {
-  const isDefaultProxy = baseUrl === DEFAULT_GEMINI_BASE_URL || baseUrl.includes("202.90.21.53");
+  const isGoogleOfficial = baseUrl.includes("generativelanguage.googleapis.com");
   const url = `${baseUrl}${path}`;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (isDefaultProxy) {
-    headers["Authorization"] = `Bearer ${apiKey}`;
-  } else {
+  if (isGoogleOfficial) {
+    // Google 官方端点使用专用 header
     headers["x-goog-api-key"] = apiKey;
+  } else {
+    // 默认代理及第三方代理（Apifox 等）统一使用 Bearer
+    headers["Authorization"] = `Bearer ${apiKey}`;
   }
+  console.log(`buildGeminiRequest: endpoint=${baseUrl}, keyLen=${apiKey?.length}, authMethod=${isGoogleOfficial ? "x-goog-api-key" : "Bearer"}`);
   return { url, headers };
 }
 

@@ -1622,12 +1622,23 @@ const CharacterSettings = ({
               toast({ title: "请先填写时间名称", variant: "destructive" });
               return;
             }
+            const variants = s.timeVariants || [];
+            const firstVariant = variants[0];
+            const isFirst = firstVariant?.id === tvId;
+            // Non-first variants must reference the first variant's image
+            if (!isFirst) {
+              const firstImageUrl = firstVariant?.imageUrl;
+              if (!firstImageUrl) {
+                toast({ title: "请先生成首张图片", description: "后续时间变体图需要以首个变体图作为参考", variant: "destructive" });
+                return;
+              }
+            }
+            const referenceImageUrl = isFirst ? undefined : (firstVariant?.imageUrl || undefined);
             const tvTaskKey = `timevariant-${tvId}`;
             addTask(tvTaskKey, "sceneImg");
             setGeneratingSceneImgIds((prev) => new Set(prev).add(tvTaskKey));
             try {
               const combinedDesc = `${s.name}，${tv.label}：${tv.description || s.description}`;
-              const referenceImageUrl = s.imageUrl || (s.timeVariants || []).find(v => v.id !== tvId && v.imageUrl)?.imageUrl || undefined;
               const { data, error } = await withTimeout(
                 invokeFunction("generate-scene", { name: `${s.name} - ${tv.label}`, description: combinedDesc, style: artStyle, model: charImageModel, referenceImageUrl }),
                 SCENE_IMAGE_TIMEOUT_MS,

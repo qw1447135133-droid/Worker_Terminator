@@ -571,7 +571,6 @@ const CharacterSettings = ({
     try {
       if (hasCostumesToDescribe) {
         // Describe each costume variant individually
-        const costumeLabels = character.costumes!.map(cos => cos.label || "未命名").join("、");
         const data = await invokeStreamingFunction("generate-character-description", {
           characterName: character.name,
           script,
@@ -589,17 +588,29 @@ const CharacterSettings = ({
             costumes: updatedCostumes,
           });
         } else {
-          // Fallback: just set base description
           updateCharacterAsync(id, { description: data.description || "" });
         }
         toast({ title: "识别成功", description: `已为「${character.name}」生成角色描述及 ${character.costumes!.length} 套服装描述` });
       } else {
-        // No costumes — original behavior
+        // No costumes — discover costume variants from script
         const data = await invokeStreamingFunction("generate-character-description", {
-          characterName: character.name, script, model: decomposeModel,
+          characterName: character.name, script, discoverCostumes: true, model: decomposeModel,
         });
-        updateCharacterAsync(id, { description: data.description || "" });
-        toast({ title: "识别成功", description: `已为「${character.name}」生成角色描述` });
+        if (data.discoveredCostumes && Array.isArray(data.discoveredCostumes) && data.discoveredCostumes.length >= 2) {
+          const newCostumes: CostumeSetting[] = data.discoveredCostumes.map((cos: any) => ({
+            id: crypto.randomUUID(),
+            label: cos.label || "",
+            description: cos.description || "",
+            isAIGenerated: true,
+          }));
+          updateCharacterAsync(id, { description: data.description || "", costumes: newCostumes });
+          // Auto-expand costume panel
+          setExpandedCostumeCharIds(prev => { const next = new Set(prev); next.add(id); return next; });
+          toast({ title: "识别成功", description: `已为「${character.name}」生成角色描述，发现 ${newCostumes.length} 套服装变体` });
+        } else {
+          updateCharacterAsync(id, { description: data.description || "" });
+          toast({ title: "识别成功", description: `已为「${character.name}」生成角色描述${data.discoveredCostumes?.length === 0 ? "（未发现服装变体）" : ""}` });
+        }
       }
     } catch (e: any) {
       console.error("Auto describe character error:", e);

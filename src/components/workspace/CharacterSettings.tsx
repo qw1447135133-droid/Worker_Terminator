@@ -1801,7 +1801,7 @@ const CharacterSettings = ({
                           value={activeTv.description}
                           onChange={(e) => updateTimeVariant(activeTv.id, { description: e.target.value })}
                           placeholder="该时间段的场景描述（光线、氛围、色调等）"
-                          className="text-xs min-h-[50px] resize-none"
+                          className="text-sm min-h-[50px] resize-none"
                           rows={2}
                         />
                         <div className="flex gap-2 flex-wrap">

@@ -150,12 +150,17 @@ This rule overrides any other inference. Ethnicity must be explicitly stated in 
 
 // ===== MAIN INTERFACE =====
 
+export interface InvokeOptions {
+  onProgress?: (partialData: any) => void;
+}
+
 export async function invokeFunction<T = any>(
   functionName: string,
   body: Record<string, unknown>,
+  options?: InvokeOptions,
 ): Promise<{ data: T; error: null } | { data: null; error: Error }> {
   try {
-    const data = await routeFunction(functionName, body);
+    const data = await routeFunction(functionName, body, options);
     return { data: data as T, error: null };
   } catch (e) {
     return { data: null, error: e instanceof Error ? e : new Error(String(e)) };

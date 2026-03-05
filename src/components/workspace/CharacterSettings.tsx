@@ -384,7 +384,7 @@ const CharacterSettings = ({
           addTask(tvTaskKey, "sceneImg");
           setGeneratingSceneImgIds((prev) => new Set(prev).add(tvTaskKey));
 
-          const isFirstVariant = !isFirstGenerated;
+          const isFirstVariant = vIdx === 0;
           let succeeded = false;
 
           try {

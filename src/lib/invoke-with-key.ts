@@ -376,29 +376,53 @@ async function localDecompose(body: any) {
   return { scenes };
 }
 
-/** Split a multi-episode script into individual episodes */
+const MAX_CHUNK_CHARS = 8000;
+
+/** Split a multi-episode script into chunks, each ≤ 8000 chars */
 function splitScriptByEpisodes(script: string): string[] {
-  // Match common episode markers: EP1, EP2, 第一集, 第1集, Episode 1, etc.
+  // First try to split by episode markers
   const epPattern = /(?:^|\n)\s*(?:EP\s*(\d+)|第\s*(\d+)\s*[集话期章]|Episode\s+(\d+))\b/gi;
-  const markers: { index: number; label: string }[] = [];
+  const markers: { index: number }[] = [];
   let m: RegExpExecArray | null;
   while ((m = epPattern.exec(script)) !== null) {
-    markers.push({ index: m.index, label: m[0].trim() });
+    markers.push({ index: m.index });
   }
-  
-  if (markers.length <= 1) return [script]; // Single or no episode markers
 
-  const episodes: string[] = [];
-  for (let i = 0; i < markers.length; i++) {
-    const start = markers[i].index;
-    const end = i < markers.length - 1 ? markers[i + 1].index : script.length;
-    const ep = script.slice(start, end).trim();
-    if (ep.length > 100) { // Only count substantial chunks
-      episodes.push(ep);
+  let rawChunks: string[];
+  if (markers.length > 1) {
+    rawChunks = [];
+    for (let i = 0; i < markers.length; i++) {
+      const start = markers[i].index;
+      const end = i < markers.length - 1 ? markers[i + 1].index : script.length;
+      const ep = script.slice(start, end).trim();
+      if (ep.length > 100) rawChunks.push(ep);
     }
+    if (rawChunks.length <= 1) rawChunks = [script];
+  } else {
+    rawChunks = [script];
   }
 
-  return episodes.length > 1 ? episodes : [script];
+  // Further split any chunk exceeding MAX_CHUNK_CHARS
+  const finalChunks: string[] = [];
+  for (const chunk of rawChunks) {
+    if (chunk.length <= MAX_CHUNK_CHARS) {
+      finalChunks.push(chunk);
+      continue;
+    }
+    // Split by paragraph boundaries (double newline) trying to stay under limit
+    const paragraphs = chunk.split(/\n{2,}/);
+    let current = "";
+    for (const para of paragraphs) {
+      if (current.length + para.length + 2 > MAX_CHUNK_CHARS && current.length > 0) {
+        finalChunks.push(current.trim());
+        current = "";
+      }
+      current += (current ? "\n\n" : "") + para;
+    }
+    if (current.trim()) finalChunks.push(current.trim());
+  }
+
+  return finalChunks.length > 1 ? finalChunks : [script];
 }
 
 /** Parse decompose JSON result from AI text */

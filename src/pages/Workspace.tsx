@@ -261,19 +261,10 @@ const Workspace = () => {
         // ========== Phase 2: Script decomposition (streaming) ==========
         toast({ title: "阶段 2/2", description: "正在拆解分镜与时长分配..." });
 
-        // Build costume info for multi-costume characters
-        const costumeInfo = autoCharacters
-          .filter(c => c.costumes && c.costumes.length >= 2)
-          .map(c => ({
-            name: c.name,
-            costumes: c.costumes!.map(cos => ({ label: cos.label, description: cos.description })),
-          }));
-
         const { data: decomposeData, error: decomposeError } = await invokeFunction("script-decompose", {
           script,
           systemPrompt,
           model: decomposeModel,
-          costumeInfo: costumeInfo.length > 0 ? costumeInfo : undefined,
         });
         if (decomposeError) throw decomposeError;
 

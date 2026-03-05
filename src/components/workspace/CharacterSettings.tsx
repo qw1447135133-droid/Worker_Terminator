@@ -697,6 +697,9 @@ const CharacterSettings = ({
     // Process a single character: description (with retry) → image (with retry) → costume images
     const processCharacter = async (c: CharacterSetting) => {
       if (!String(c.name || "").trim()) return;
+      // Keep "自动识别" spinner active for the entire character processing (desc + img)
+      setGeneratingCharDescIds((prev) => new Set(prev).add(c.id));
+      try {
 
       const hasCostumesToDescribe = c.costumes && c.costumes.length > 0;
 
@@ -735,7 +738,7 @@ const CharacterSettings = ({
         console.error(`Char desc "${c.name}" failed:`, e);
       } finally {
         removeTask(c.id, "charDesc");
-        setGeneratingCharDescIds((prev) => { const next = new Set(prev); next.delete(c.id); return next; });
+        // Don't remove from generatingCharDescIds here — keep spinner active until full character processing completes
         textSem.release();
       }
       bumpDone();
@@ -860,13 +863,17 @@ const CharacterSettings = ({
           break;
         }
       }
+      } finally {
+        setGeneratingCharDescIds((prev) => { const next = new Set(prev); next.delete(c.id); return next; });
+      }
     };
 
     // Process a single scene: description → image (or time variant images)
     const processScene = async (s: SceneSetting) => {
       if (!String(s.name || "").trim()) return;
-
-      // --- Description phase ---
+      // Keep "自动识别" spinner active for the entire scene processing (desc + img)
+      setGeneratingDescIds((prev) => new Set(prev).add(s.id));
+      try {
       let desc = "";
       let descOk = false;
       if (autoDetectAbortRef.current) return;
@@ -885,7 +892,7 @@ const CharacterSettings = ({
         console.error(`Scene desc "${s.name}" failed:`, e);
       } finally {
         removeTask(s.id, "sceneDesc");
-        setGeneratingDescIds((prev) => { const next = new Set(prev); next.delete(s.id); return next; });
+        // Don't remove from generatingDescIds here — keep spinner active until full scene processing completes
         textSem.release();
       }
       bumpDone();
@@ -1002,6 +1009,9 @@ const CharacterSettings = ({
           failCountRef.current += remaining.length;
           break;
         }
+      }
+      } finally {
+        setGeneratingDescIds((prev) => { const next = new Set(prev); next.delete(s.id); return next; });
       }
     };
 

@@ -366,9 +366,11 @@ async function localDecompose(body: any) {
   // Single episode or couldn't split - send as one request
   const userText = `${prompt}\n\n---\n\n以下是用户的剧本：\n\n${script}${costumeContext}`;
 
+  const decomposeSignal = AbortSignal.timeout(10 * 60_000); // 10 min timeout for decomposition
   const data = await callGemini(model,
     [{ role: "user", parts: [{ text: userText }] }],
     { temperature: 0.3, maxOutputTokens: 65536 },
+    decomposeSignal,
   );
 
   const resultText = extractText(data);

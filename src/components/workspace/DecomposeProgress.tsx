@@ -70,8 +70,11 @@ const DecomposeProgress = ({ chunks, onRetryChunk, isRetrying }: DecomposeProgre
   const failed = chunks.filter(c => c.status === "failed").length;
   const processing = chunks.some(c => c.status === "processing");
   const total = chunks.length;
-  const realPercent = Math.round((done / total) * 100);
-  const percent = useAnimatedProgress(realPercent, processing);
+  // Ceiling = completed chunks + currently processing chunk (if any)
+  const ceilingChunks = done + (processing ? 1 : 0);
+  const ceilPercent = Math.round((ceilingChunks / total) * 100);
+  const floorPercent = Math.round((done / total) * 100);
+  const percent = useAnimatedProgress(ceilPercent, floorPercent, processing);
 
   return (
     <div className="rounded-lg border border-border bg-card p-4 space-y-3">

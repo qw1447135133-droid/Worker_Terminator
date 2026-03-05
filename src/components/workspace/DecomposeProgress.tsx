@@ -130,7 +130,6 @@ const DecomposeProgress = ({ chunks, onRetryChunk, isRetrying }: DecomposeProgre
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium text-foreground">
           分镜拆解进度
-          {isComplete && <span className="ml-1.5 text-accent">✓ 完成</span>}
         </span>
         <AnimatePresence mode="wait">
           {isComplete ? (

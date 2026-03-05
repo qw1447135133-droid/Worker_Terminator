@@ -224,6 +224,12 @@ const Workspace = () => {
     if (!script.trim() || isAnalyzingRef.current) return;
     isAnalyzingRef.current = true;
     setIsAnalyzing(true);
+
+    const resetAnalyzing = () => {
+      isAnalyzingRef.current = false;
+      setIsAnalyzing(false);
+      analyzeAbortRef.current = null;
+    };
     
     try {
         const controller = new AbortController();

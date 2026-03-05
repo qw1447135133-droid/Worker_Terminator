@@ -195,11 +195,34 @@ async function localExtract(body: any) {
   if (!script) throw new Error("缺少剧本内容");
 
   const model = requestedModel || "gemini-3.1-pro-preview";
-  const promptText = `${EXTRACTION_PROMPT}\n\n---\n\n以下是用户的剧本：\n\n${script}`;
+
+  // Pre-scan: extract all potential character names from bracket annotations to help AI
+  const bracketNames = new Set<string>();
+  const bracketPattern = /\[([^\]·]+?)(?:·[^\]]+)?\]/g;
+  let m: RegExpExecArray | null;
+  while ((m = bracketPattern.exec(script)) !== null) {
+    const name = m[1].trim();
+    if (name && name.length <= 30) bracketNames.add(name);
+  }
+  // Also scan for dialogue prefixes like "角色名："
+  const dialoguePattern = /^[\s]*([^\s:：（(]{1,20})[：:]\s*[""「\S]/gm;
+  while ((m = dialoguePattern.exec(script)) !== null) {
+    const name = m[1].trim().replace(/^\[/, '').replace(/\]$/, '');
+    if (name && name.length <= 20 && !/^[\d第片段场景分镜]/.test(name)) {
+      bracketNames.add(name);
+    }
+  }
+
+  let preScanHint = "";
+  if (bracketNames.size > 0) {
+    preScanHint = `\n\n---\n\n【系统预扫描提示】以下角色名在剧本中被检测到，请确保全部包含在输出中（如有遗漏则补充）：\n${[...bracketNames].join('、')}\n`;
+  }
+
+  const promptText = `${EXTRACTION_PROMPT}\n\n---\n\n以下是用户的剧本：\n\n${script}${preScanHint}`;
 
   const data = await callGemini(model,
     [{ role: "user", parts: [{ text: promptText }] }],
-    { temperature: 0.2, maxOutputTokens: 16384, responseMimeType: "application/json" },
+    { temperature: 0.1, maxOutputTokens: 32768, responseMimeType: "application/json" },
   );
 
   const textContent = extractText(data);
@@ -217,6 +240,21 @@ async function localExtract(body: any) {
     const match = cleanedText.match(/\{[\s\S]*\}/);
     if (match) parsed = JSON.parse(match[0]);
     else throw new Error("无法解析 AI 返回的 JSON");
+  }
+
+  // Verify: check if pre-scanned names are all present in AI output
+  const extractedNames = new Set((parsed.characters || []).map((c: any) => c.name?.trim()));
+  const missingNames = [...bracketNames].filter(n => !extractedNames.has(n));
+  
+  if (missingNames.length > 0) {
+    console.warn(`[localExtract] AI 遗漏了 ${missingNames.length} 个角色，正在补充:`, missingNames);
+    // Add stub entries for missing characters so they aren't lost
+    for (const name of missingNames) {
+      parsed.characters.push({
+        name,
+        description: `（AI 未提取到该角色的详细描述，请根据剧本手动补充）`,
+      });
+    }
   }
 
   return { characters: parsed.characters || [], sceneSettings: parsed.sceneSettings || [] };

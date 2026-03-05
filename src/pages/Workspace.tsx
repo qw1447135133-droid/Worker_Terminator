@@ -273,23 +273,50 @@ const Workspace = () => {
 
         // ========== Phase 2: Script decomposition (streaming) ==========
         toast({ title: "阶段 2/2", description: "正在拆解分镜与时长分配..." });
+        setDecomposeChunks([]);
 
         const handleDecomposeProgress = (partialData: any) => {
-          const { scenes: partialScenes, chunkIndex, totalChunks } = partialData;
-          toast({ title: "阶段 2/2", description: `已完成第 ${chunkIndex + 1}/${totalChunks} 段拆解，当前 ${partialScenes.length} 个分镜` });
-          // Progressively update scenes in UI
-          const progressScenes: Scene[] = partialScenes.map((s: any, i: number) => ({
-            id: crypto.randomUUID(),
-            sceneNumber: s.sceneNumber ?? i + 1,
-            segmentLabel: s.segmentLabel ?? "",
-            sceneName: s.sceneName ?? "",
-            description: s.description ?? "",
-            characters: s.characters ?? [],
-            dialogue: s.dialogue ?? "",
-            cameraDirection: s.cameraDirection ?? "",
-            duration: s.duration ?? 5,
-          }));
-          setScenes(progressScenes);
+          const { scenes: partialScenes, chunkIndex, totalChunks, status, failedChunks = [], error } = partialData;
+
+          // Initialize chunk status list
+          if (status === "init") {
+            setDecomposeChunks(Array.from({ length: totalChunks }, (_, i) => ({
+              index: i,
+              label: `第 ${i + 1} 段`,
+              status: "pending" as const,
+            })));
+            return;
+          }
+
+          // Update chunk status
+          setDecomposeChunks(prev => prev.map(c =>
+            c.index === chunkIndex
+              ? { ...c, status: status as ChunkStatus["status"], error }
+              : c
+          ));
+
+          if (status === "done" || status === "failed") {
+            if (status === "done") {
+              toast({ title: "阶段 2/2", description: `已完成第 ${chunkIndex + 1}/${totalChunks} 段拆解，当前 ${partialScenes.length} 个分镜` });
+            } else {
+              toast({ title: "拆解失败", description: `第 ${chunkIndex + 1} 段拆解失败：${error || "未知错误"}，可点击重试`, variant: "destructive" });
+            }
+            // Progressively update scenes
+            if (partialScenes.length > 0) {
+              const progressScenes: Scene[] = partialScenes.map((s: any, i: number) => ({
+                id: crypto.randomUUID(),
+                sceneNumber: s.sceneNumber ?? i + 1,
+                segmentLabel: s.segmentLabel ?? "",
+                sceneName: s.sceneName ?? "",
+                description: s.description ?? "",
+                characters: s.characters ?? [],
+                dialogue: s.dialogue ?? "",
+                cameraDirection: s.cameraDirection ?? "",
+                duration: s.duration ?? 5,
+              }));
+              setScenes(progressScenes);
+            }
+          }
         };
 
         const { data: decomposeData, error: decomposeError } = await invokeFunction("script-decompose", {
@@ -298,6 +325,16 @@ const Workspace = () => {
           model: decomposeModel,
         }, { onProgress: handleDecomposeProgress });
         if (decomposeError) throw decomposeError;
+
+        // Store metadata for retries
+        if (decomposeData?.episodes) {
+          lastDecomposeMetaRef.current = {
+            episodes: decomposeData.episodes,
+            costumeContext: decomposeData.costumeContext || "",
+            model: decomposeData.model || decomposeModel,
+            prompt: decomposeData.prompt || "",
+          };
+        }
 
         let parsed: any = decomposeData;
         if (!parsed) {

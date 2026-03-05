@@ -862,7 +862,10 @@ const CharacterSettings = ({
           break;
         }
       }
-    };
+      }) => {
+        // Clean up the "自动识别" spinner at the very end of character processing
+        setGeneratingCharDescIds((prev) => { const next = new Set(prev); next.delete(c.id); return next; });
+      })();
 
     // Process a single scene: description → image (or time variant images)
     const processScene = async (s: SceneSetting) => {

@@ -215,12 +215,14 @@ const Workspace = () => {
   const handleCancelAnalyze = () => {
     analyzeAbortRef.current?.abort();
     analyzeAbortRef.current = null;
+    isAnalyzingRef.current = false;
     setIsAnalyzing(false);
     toast({ title: "已中止", description: "剧本分析已取消" });
   };
 
   const handleAnalyze = async () => {
-    if (!script.trim() || isAnalyzing) return;
+    if (!script.trim() || isAnalyzingRef.current) return;
+    isAnalyzingRef.current = true;
     setIsAnalyzing(true);
     
     try {

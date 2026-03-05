@@ -144,12 +144,29 @@ const SceneList = ({ scenes, onScenesChange, onNext, characters = [] }: SceneLis
         {segments.map((segment) => {
           const isCollapsed = collapsedSegments.has(segment.key);
           // Collect all unique characters and scene tags
-          const allChars = new Set<string>();
+          // Build character tags with costume info for multi-costume characters
+          const charTagMap = new Map<string, Set<string>>(); // name -> set of costume labels
           segment.scenes.forEach((s) => s.characters.forEach((c) => {
             const name = typeof c === 'string' ? c : (c as any)?.name || '';
-            if (name) allChars.add(name);
+            if (!name) return;
+            if (!charTagMap.has(name)) charTagMap.set(name, new Set());
+            const charSetting = characters.find(ch => ch.name === name);
+            if (charSetting && charSetting.costumes && charSetting.costumes.length > 1) {
+              const match = matchCostumeLabel(charSetting, s);
+              if (match) charTagMap.get(name)!.add(match.label);
+            }
           }));
-          const charTags = Array.from(allChars);
+          // Build display tags: [角色名·服装label] for multi-costume, [角色名] for single
+          const charTags: { name: string; display: string }[] = [];
+          for (const [name, costumeLabels] of charTagMap) {
+            if (costumeLabels.size > 0) {
+              for (const label of costumeLabels) {
+                charTags.push({ name, display: `${name}·${label}` });
+              }
+            } else {
+              charTags.push({ name, display: name });
+            }
+          }
 
           return (
             <Card key={segment.key} className="border-border/60">
@@ -181,8 +198,8 @@ const SceneList = ({ scenes, onScenesChange, onNext, characters = [] }: SceneLis
                   <div className="flex items-start gap-1 mt-2 flex-wrap">
                     <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">场景/人物标签：</span>
                     <span className="text-xs text-primary font-medium">[{segment.sceneName}]</span>
-                    {charTags.map((c) => (
-                      <span key={c} className="text-xs text-primary font-medium">[{c}]</span>
+                    {charTags.map((tag, i) => (
+                      <span key={`${tag.display}-${i}`} className="text-xs text-primary font-medium">[{tag.display}]</span>
                     ))}
                   </div>
                 )}

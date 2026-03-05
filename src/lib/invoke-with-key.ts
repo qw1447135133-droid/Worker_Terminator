@@ -206,36 +206,32 @@ async function localExtract(body: any) {
 
   const model = requestedModel || "gemini-3.1-pro-preview";
 
-  // Pre-scan: extract all character names AND their costume variants from bracket annotations
+  // Pre-scan: extract character names from costume-annotated brackets and dialogue prefixes
+  // IMPORTANT: Only brackets with · separators are character annotations (e.g. [Name·Age·Costume])
+  // Bare brackets like [场景名] are scene headings and must NOT be treated as characters
   const bracketNames = new Set<string>();
   // Map: baseName -> Set of costume suffixes (e.g. "32岁·探险装备")
   const costumeMap = new Map<string, Set<string>>();
 
-  // Match [Name] or [Name·suffix1·suffix2...]
-  const bracketPattern = /\[([^\]]+)\]/g;
+  // Only match brackets containing · separator (character costume annotations)
+  const costumePattern = /\[([^\]·]+)[·・]([^\]]+)\]/g;
   let m: RegExpExecArray | null;
-  while ((m = bracketPattern.exec(script)) !== null) {
-    const full = m[1].trim();
-    const parts = full.split(/[·・]/);
-    const baseName = parts[0].trim();
+  while ((m = costumePattern.exec(script)) !== null) {
+    const baseName = m[1].trim();
+    const suffix = m[2].trim();
     if (!baseName || baseName.length > 30) continue;
     bracketNames.add(baseName);
-
-    // If there are suffixes beyond the name, record as costume variant
-    if (parts.length >= 2) {
-      const suffix = parts.slice(1).map(p => p.trim()).join('·');
-      if (suffix) {
-        if (!costumeMap.has(baseName)) costumeMap.set(baseName, new Set());
-        costumeMap.get(baseName)!.add(suffix);
-      }
+    if (suffix) {
+      if (!costumeMap.has(baseName)) costumeMap.set(baseName, new Set());
+      costumeMap.get(baseName)!.add(suffix);
     }
   }
 
-  // Also scan for dialogue prefixes like "角色名："
-  const dialoguePattern = /^[\s]*([^\s:：（(]{1,20})[：:]\s*[""「\S]/gm;
+  // Also scan for dialogue prefixes like "角色名：" — these are reliable character indicators
+  const dialoguePattern = /^[\s]*([^\s:：（(\[]{1,20})[：:]\s*[""「\S]/gm;
   while ((m = dialoguePattern.exec(script)) !== null) {
-    const name = m[1].trim().replace(/^\[/, '').replace(/\]$/, '');
-    if (name && name.length <= 20 && !/^[\d第片段场景分镜]/.test(name)) {
+    const name = m[1].trim();
+    if (name && name.length <= 20 && !/^[\d第片段场景分镜EP]/.test(name)) {
       bracketNames.add(name);
     }
   }
@@ -291,12 +287,13 @@ async function localExtract(body: any) {
         console.warn(`[localExtract] 过滤掉被误归为角色的场景: "${name}"`);
         return false;
       }
-      // Heuristic: if the name contains no letter characters and looks like a location
-      // (e.g. contains 室/厅/场/区/城/洞/林/山/海/湖/河/路/街/馆/院/楼/基地/总部/废墟)
-      const locationKeywords = /[室厅场区城洞林山海湖河路街馆院楼墟墟基地总部办公遗迹星球飞船空间站]/;
-      if (locationKeywords.test(name) && !bracketNames.has(name)) {
+      // Heuristic: if name looks like a pure location (ends with location suffixes)
+      // Use multi-char or end-of-string anchored patterns to avoid false positives like "敌船船长"
+      const locationSuffixes = /(办公室|实验室|会议室|休息室|控制室|大厅|走廊|基地|总部|废墟|遗迹|空间站|飞船|星球|广场|码头|港口|机场|车站|公寓|医院|学校|教堂|监狱|工厂|仓库|酒吧|餐厅|咖啡馆|修车厂|拍卖[会行]|博物馆|图书馆|甲板|沙滩|海滩|丛林|悬崖|深潭|岩壁|巷道?|街道)[\s\-/]*[\u4e00-\u9fff]*$/;
+      const locationPrefixes = /^(第.+集|EP\s*\d|场景|分镜|片段)/i;
+      const isLikelyLocation = (locationSuffixes.test(name) || locationPrefixes.test(name)) && !bracketNames.has(name);
+      if (isLikelyLocation) {
         console.warn(`[localExtract] 过滤掉疑似场景名的角色: "${name}"`);
-        // Move to sceneSettings instead
         if (!parsed.sceneSettings) parsed.sceneSettings = [];
         parsed.sceneSettings.push({ name, description: c.description || "" });
         return false;

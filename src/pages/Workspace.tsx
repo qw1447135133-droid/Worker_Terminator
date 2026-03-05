@@ -386,6 +386,7 @@ const Workspace = () => {
           duration: 8000,
         });
       } finally {
+        isAnalyzingRef.current = false;
         setIsAnalyzing(false);
       }
     };

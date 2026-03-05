@@ -339,7 +339,7 @@ async function localDecompose(body: any) {
       const epPrefix = episodes.length > 1 ? `${epIdx + 1}-` : "";
       const userText = `${prompt}\n\n---\n\n以下是第${epIdx + 1}集剧本：\n\n${ep}${costumeContext}`;
 
-      const chunkSignal = AbortSignal.timeout(10 * 60_000); // 10 min timeout per chunk
+      const chunkSignal = AbortSignal.timeout(5 * 60_000); // 5 min timeout per chunk
       const data = await callGemini(model,
         [{ role: "user", parts: [{ text: userText }] }],
         { temperature: 0.3, maxOutputTokens: 65536 },

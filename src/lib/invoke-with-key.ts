@@ -358,9 +358,22 @@ async function localExtract(body: any) {
     }
   }
 
-  // Remove any costume data that AI might have returned (we don't want it in this phase)
+  // Keep costumes that have at least 2 entries (single costume = no variant needed)
   for (const char of (parsed.characters || [])) {
-    delete char.costumes;
+    if (char.costumes && Array.isArray(char.costumes)) {
+      if (char.costumes.length < 2) {
+        delete char.costumes;
+      }
+    }
+  }
+
+  // Keep timeVariants that have at least 2 entries
+  for (const scene of (parsed.sceneSettings || [])) {
+    if (scene.timeVariants && Array.isArray(scene.timeVariants)) {
+      if (scene.timeVariants.length < 2) {
+        delete scene.timeVariants;
+      }
+    }
   }
 
   return { characters: parsed.characters || [], sceneSettings: parsed.sceneSettings || [] };

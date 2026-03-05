@@ -246,13 +246,13 @@ async function localExtract(body: any) {
     preScanHint = `\n\n---\n\n【系统预扫描提示】以下角色名在剧本中被检测到，请确保全部包含在输出中：\n${[...bracketNames].join('、')}\n`;
   }
   // Costume variants hint — critical for preventing omissions
-  const multiCostumeChars = [...costumeMap.entries()].filter(([, v]) => v.size >= 2);
+  const multiCostumeChars = [...costumeMap.entries()].filter(([, v]) => v.size >= 1);
   if (multiCostumeChars.length > 0) {
-    preScanHint += `\n【服装变体预扫描】以下角色在剧本中检测到多套服装，必须全部作为 costumes 数组输出，严禁遗漏任何一套：\n`;
+    preScanHint += `\n【服装变体预扫描】以下角色在剧本中检测到带服装后缀的方括号标注，请仔细核对全剧本中该角色的所有不同服装后缀，全部作为 costumes 数组输出：\n`;
     for (const [name, costumes] of multiCostumeChars) {
-      preScanHint += `  - ${name}：${[...costumes].map(c => `"${c}"`).join('、')}\n`;
+      preScanHint += `  - ${name}（已检测到 ${costumes.size} 套）：${[...costumes].map(c => `"${c}"`).join('、')}\n`;
     }
-    preScanHint += `\n请逐一核对上述服装变体，确保每个都出现在对应角色的 costumes 数组中。\n`;
+    preScanHint += `\n注意：以上仅为正则预扫描结果，可能不完整。请通读全文查找该角色是否还有其他未被方括号标注的服装变化，一并输出。\n`;
   }
 
   const promptText = `${EXTRACTION_PROMPT}\n\n---\n\n以下是用户的剧本：\n\n${script}${preScanHint}`;

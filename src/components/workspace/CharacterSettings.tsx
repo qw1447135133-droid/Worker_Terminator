@@ -699,6 +699,7 @@ const CharacterSettings = ({
       if (!String(c.name || "").trim()) return;
       // Keep "自动识别" spinner active for the entire character processing (desc + img)
       setGeneratingCharDescIds((prev) => new Set(prev).add(c.id));
+      try {
 
       const hasCostumesToDescribe = c.costumes && c.costumes.length > 0;
 

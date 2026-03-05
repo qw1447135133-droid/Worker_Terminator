@@ -95,6 +95,7 @@ const Workspace = () => {
   const [isAbortingAutoDetect, setIsAbortingAutoDetect] = useState(false);
   const autoDetectAbortRef = useRef(false);
   const analyzeAbortRef = useRef<AbortController | null>(null);
+  const isAnalyzingRef = useRef(false);
   const [skipStoryboard, setSkipStoryboard] = useState(false);
   const [videoModel, setVideoModelState] = useState<VideoModel>(() => {
     try { return (localStorage.getItem("workspace-video-model") as VideoModel) || "seedance-1.5-pro"; } catch { return "seedance-1.5-pro"; }

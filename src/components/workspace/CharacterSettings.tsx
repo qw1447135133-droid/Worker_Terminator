@@ -204,8 +204,7 @@ const CharacterSettings = ({
         addTask(cosTaskKey, "charImg");
         setGeneratingCharImgIds((prev) => new Set(prev).add(cosTaskKey));
 
-        const isFirstCostume = !isFirstGenerated;
-        let succeeded = false;
+        const isFirstCostume = cosIdx === 0;
 
         try {
           const freshChar = charactersRef.current.find((ch) => ch.id === id);

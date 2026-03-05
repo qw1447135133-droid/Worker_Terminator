@@ -309,7 +309,7 @@ async function localExtract(body: any) {
   return { characters: parsed.characters || [], sceneSettings: parsed.sceneSettings || [] };
 }
 
-async function localDecompose(body: any) {
+async function localDecompose(body: any, onProgress?: (partialData: any) => void) {
   const { script, systemPrompt, model: requestedModel, costumeInfo } = body;
   if (!script) throw new Error("缺少剧本内容");
 
@@ -363,6 +363,11 @@ async function localDecompose(body: any) {
         }
       }
       allScenes.push(...epScenes);
+
+      // Progressive callback: send accumulated scenes after each chunk
+      if (onProgress) {
+        onProgress({ scenes: allScenes, chunkIndex: epIdx, totalChunks: episodes.length });
+      }
     }
 
     return { scenes: allScenes };

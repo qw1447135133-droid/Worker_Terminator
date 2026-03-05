@@ -66,6 +66,11 @@ interface Segment {
   totalDuration: number;
 }
 
+/** Strip any bracket wrappers (【】[]（）) from a string */
+function stripBrackets(s: string): string {
+  return s.replace(/^[【\[（(]+/, '').replace(/[】\]）)]+$/, '').trim();
+}
+
 const SceneList = ({ scenes, onScenesChange, onNext, characters = [] }: SceneListProps) => {
   const [collapsedSegments, setCollapsedSegments] = useState<Set<string>>(new Set());
 

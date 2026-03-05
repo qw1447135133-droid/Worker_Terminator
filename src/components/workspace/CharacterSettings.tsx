@@ -911,7 +911,7 @@ const CharacterSettings = ({
         console.error(`Scene desc "${s.name}" failed:`, e);
       } finally {
         removeTask(s.id, "sceneDesc");
-        // Don't remove from generatingDescIds here — keep spinner active until full scene processing completes
+        setGeneratingDescIds(prev => { const next = new Set(prev); next.delete(s.id); return next; });
         textSem.release();
       }
       bumpDone();

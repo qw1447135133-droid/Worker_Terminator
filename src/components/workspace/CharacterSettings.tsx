@@ -406,7 +406,6 @@ const CharacterSettings = ({
             prewarmThumbnail(rawUrl);
             if (isFirstVariant) {
               anchorImageUrl = rawUrl;
-              isFirstGenerated = true;
             }
             localVariants = localVariants.map(v => {
               if (v.id !== tv.id) return v;

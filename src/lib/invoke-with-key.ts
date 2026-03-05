@@ -192,28 +192,28 @@ async function localExtract(body: any) {
 
   const model = requestedModel || "gemini-3.1-pro-preview";
 
-  // Pre-scan: extract character names from costume-annotated brackets and dialogue prefixes
-  // IMPORTANT: Only brackets with · separators are character annotations (e.g. [Name·Age·Costume])
-  // Bare brackets like [场景名] are scene headings and must NOT be treated as characters
+  // Pre-scan: extract character names from brackets and dialogue prefixes
   const bracketNames = new Set<string>();
-  // Map: baseName -> Set of costume suffixes (e.g. "32岁·探险装备")
-  const costumeMap = new Map<string, Set<string>>();
 
-  // Only match brackets containing · separator (character costume annotations)
+  // Match brackets with · separator to extract base character names
   const costumePattern = /\[([^\]·]+)[·・]([^\]]+)\]/g;
   let m: RegExpExecArray | null;
   while ((m = costumePattern.exec(script)) !== null) {
     const baseName = m[1].trim();
-    const suffix = m[2].trim();
-    if (!baseName || baseName.length > 30) continue;
-    bracketNames.add(baseName);
-    if (suffix) {
-      if (!costumeMap.has(baseName)) costumeMap.set(baseName, new Set());
-      costumeMap.get(baseName)!.add(suffix);
-    }
+    if (baseName && baseName.length <= 30) bracketNames.add(baseName);
   }
 
-  // Also scan for dialogue prefixes like "角色名：" — these are reliable character indicators
+  // Also match simple brackets [Name]
+  const simpleBracket = /\[([^\]]{1,30})\]/g;
+  while ((m = simpleBracket.exec(script)) !== null) {
+    const name = m[1].trim();
+    // Skip if contains · (already handled above) or looks like a scene heading
+    if (!name || name.includes('·') || name.includes('・')) continue;
+    // Will be filtered by location check below
+    bracketNames.add(name);
+  }
+
+  // Dialogue prefixes
   const dialoguePattern = /^[\s]*([^\s:：（(\[]{1,20})[：:]\s*[""「\S]/gm;
   while ((m = dialoguePattern.exec(script)) !== null) {
     const name = m[1].trim();
@@ -222,26 +222,26 @@ async function localExtract(body: any) {
     }
   }
 
+  // Filter out location-like names from pre-scan
+  const locationSuffixes = /(办公室|实验室|会议室|休息室|控制室|大厅|走廊|基地|总部|废墟|遗迹|空间站|飞船|星球|广场|码头|港口|机场|车站|公寓|医院|学校|教堂|监狱|工厂|仓库|酒吧|餐厅|咖啡馆|修车厂|拍卖[会行]|博物馆|图书馆|甲板|沙滩|海滩|丛林|悬崖|深潭|岩壁|巷道?|街道)[\s\-/]*[\u4e00-\u9fff]*$/;
+  const locationPrefixes = /^(第.+集|EP\s*\d|场景|分镜|片段)/i;
+  for (const name of bracketNames) {
+    if (locationSuffixes.test(name) || locationPrefixes.test(name)) {
+      bracketNames.delete(name);
+    }
+  }
+
   // Build pre-scan hints
   let preScanHint = "";
   if (bracketNames.size > 0) {
     preScanHint = `\n\n---\n\n【系统预扫描提示】以下角色名在剧本中被检测到，请确保全部包含在输出中：\n${[...bracketNames].join('、')}\n`;
-  }
-  // Costume variants hint — critical for preventing omissions
-  const multiCostumeChars = [...costumeMap.entries()].filter(([, v]) => v.size >= 1);
-  if (multiCostumeChars.length > 0) {
-    preScanHint += `\n【服装变体预扫描】以下角色在剧本中检测到带服装后缀的方括号标注，请仔细核对全剧本中该角色的所有不同服装后缀，全部作为 costumes 数组输出：\n`;
-    for (const [name, costumes] of multiCostumeChars) {
-      preScanHint += `  - ${name}（已检测到 ${costumes.size} 套）：${[...costumes].map(c => `"${c}"`).join('、')}\n`;
-    }
-    preScanHint += `\n注意：以上仅为正则预扫描结果，可能不完整。请通读全文查找该角色是否还有其他未被方括号标注的服装变化，一并输出。\n`;
   }
 
   const promptText = `${EXTRACTION_PROMPT}\n\n---\n\n以下是用户的剧本：\n\n${script}${preScanHint}`;
 
   const data = await callGemini(model,
     [{ role: "user", parts: [{ text: promptText }] }],
-    { temperature: 0.1, maxOutputTokens: 32768, responseMimeType: "application/json" },
+    { temperature: 0.1, maxOutputTokens: 16384, responseMimeType: "application/json" },
   );
 
   const textContent = extractText(data);
@@ -267,16 +267,10 @@ async function localExtract(body: any) {
     const before = parsed.characters.length;
     parsed.characters = parsed.characters.filter((c: any) => {
       const name = c.name?.trim() || "";
-      const nameLower = name.toLowerCase();
-      // If this "character" also appears in sceneSettings, it's likely a scene
-      if (sceneNames.has(nameLower)) {
+      if (sceneNames.has(name.toLowerCase())) {
         console.warn(`[localExtract] 过滤掉被误归为角色的场景: "${name}"`);
         return false;
       }
-      // Heuristic: if name looks like a pure location (ends with location suffixes)
-      // Use multi-char or end-of-string anchored patterns to avoid false positives like "敌船船长"
-      const locationSuffixes = /(办公室|实验室|会议室|休息室|控制室|大厅|走廊|基地|总部|废墟|遗迹|空间站|飞船|星球|广场|码头|港口|机场|车站|公寓|医院|学校|教堂|监狱|工厂|仓库|酒吧|餐厅|咖啡馆|修车厂|拍卖[会行]|博物馆|图书馆|甲板|沙滩|海滩|丛林|悬崖|深潭|岩壁|巷道?|街道)[\s\-/]*[\u4e00-\u9fff]*$/;
-      const locationPrefixes = /^(第.+集|EP\s*\d|场景|分镜|片段)/i;
       const isLikelyLocation = (locationSuffixes.test(name) || locationPrefixes.test(name)) && !bracketNames.has(name);
       if (isLikelyLocation) {
         console.warn(`[localExtract] 过滤掉疑似场景名的角色: "${name}"`);
@@ -298,49 +292,13 @@ async function localExtract(body: any) {
   if (missingNames.length > 0) {
     console.warn(`[localExtract] AI 遗漏了 ${missingNames.length} 个角色，正在补充:`, missingNames);
     for (const name of missingNames) {
-      const knownCostumes = costumeMap.get(name);
-      const entry: any = { name, description: `（AI 未提取到该角色的详细描述，请根据剧本手动补充）` };
-      if (knownCostumes && knownCostumes.size >= 1) {
-        entry.costumes = [...knownCostumes].map(label => ({
-          id: crypto.randomUUID(),
-          label,
-          description: `（${name} 的"${label}"造型，请手动补充描述）`,
-        }));
-      }
-      parsed.characters.push(entry);
+      parsed.characters.push({ name, description: `（AI 未提取到该角色的详细描述，请根据剧本手动补充）` });
     }
   }
 
-  // === Post-verification: ensure no missing costume variants ===
+  // Remove any costume data that AI might have returned (we don't want it in this phase)
   for (const char of (parsed.characters || [])) {
-    const knownCostumes = costumeMap.get(char.name?.trim());
-    if (!knownCostumes || knownCostumes.size < 1) continue;
-
-    // If pre-scan found costumes but AI didn't output costumes array
-    if (!char.costumes || !Array.isArray(char.costumes)) {
-      if (knownCostumes.size >= 2) {
-        console.warn(`[localExtract] 角色"${char.name}"应有 ${knownCostumes.size} 套服装但 AI 未输出 costumes 数组，正在补充`);
-        char.costumes = [...knownCostumes].map(label => ({
-          id: crypto.randomUUID(),
-          label,
-          description: `${char.description || ''}（${label}造型）`,
-        }));
-      }
-      continue;
-    }
-
-    // Check each known costume is present
-    const existingLabels = new Set(char.costumes.map((c: any) => c.label?.trim()));
-    for (const label of knownCostumes) {
-      if (!existingLabels.has(label)) {
-        console.warn(`[localExtract] 角色"${char.name}"缺少服装变体"${label}"，正在补充`);
-        char.costumes.push({
-          id: crypto.randomUUID(),
-          label,
-          description: `${char.description || ''}（${label}造型，请手动补充详细描述）`,
-        });
-      }
-    }
+    delete char.costumes;
   }
 
   return { characters: parsed.characters || [], sceneSettings: parsed.sceneSettings || [] };

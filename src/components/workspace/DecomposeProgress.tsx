@@ -97,28 +97,54 @@ function useAnimatedProgress(ceilPercent: number, floorPercent: number, hasProce
 }
 
 const DecomposeProgress = ({ chunks, onRetryChunk, isRetrying }: DecomposeProgressProps) => {
-  if (chunks.length <= 1) return null;
-
   const done = chunks.filter(c => c.status === "done").length;
   const failed = chunks.filter(c => c.status === "failed").length;
   const processing = chunks.some(c => c.status === "processing");
   const total = chunks.length;
   const ceilingChunks = done + (processing ? 1 : 0);
-  const ceilPercent = Math.round((ceilingChunks / total) * 100);
-  const floorPercent = Math.round((done / total) * 100);
+  const ceilPercent = total > 0 ? Math.round((ceilingChunks / total) * 100) : 0;
+  const floorPercent = total > 0 ? Math.round((done / total) * 100) : 0;
   const percent = useAnimatedProgress(ceilPercent, floorPercent, processing);
+
+  const isComplete = total > 1 && done === total && failed === 0;
+  const [showCelebration, setShowCelebration] = useState(false);
+  const celebratedRef = useRef(false);
+
+  useEffect(() => {
+    if (isComplete && !celebratedRef.current) {
+      celebratedRef.current = true;
+      setShowCelebration(true);
+      const timer = setTimeout(() => setShowCelebration(false), 2000);
+      return () => clearTimeout(timer);
+    }
+    if (!isComplete) {
+      celebratedRef.current = false;
+    }
+  }, [isComplete]);
+
+  if (chunks.length <= 1) return null;
 
   return (
     <div className="rounded-lg border border-border bg-card p-4 space-y-3">
       <div className="flex items-center justify-between text-sm">
-        <span className="font-medium text-foreground">分镜拆解进度</span>
+        <span className="font-medium text-foreground">
+          分镜拆解进度
+          {isComplete && <span className="ml-1.5 text-accent">✓ 完成</span>}
+        </span>
         <span className="text-muted-foreground tabular-nums">
           {done}/{total} 段完成{failed > 0 && <span className="text-destructive ml-1">（{failed} 段失败）</span>}
           <span className="ml-2 font-semibold text-foreground">{percent.toFixed(1)}%</span>
         </span>
       </div>
 
-      <Progress value={percent} className="h-2 shimmer-progress" />
+      <div className="relative">
+        <Progress
+          value={percent}
+          className={`h-2 shimmer-progress transition-all duration-500 ${
+            showCelebration ? "progress-celebrate" : ""
+          } ${isComplete ? "progress-done" : ""}`}
+        />
+      </div>
 
       <div className="flex flex-wrap gap-2">
         {chunks.map((chunk) => (

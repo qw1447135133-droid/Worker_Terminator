@@ -571,14 +571,12 @@ const CharacterSettings = ({
     try {
       if (hasCostumesToDescribe) {
         // Describe each costume variant individually
-        const costumeLabels = character.costumes!.map(cos => cos.label || "未命名").join("、");
         const data = await invokeStreamingFunction("generate-character-description", {
           characterName: character.name,
           script,
           costumes: character.costumes!.map(cos => cos.label || "未命名"),
           model: decomposeModel,
         });
-        // Apply per-costume descriptions
         if (data.costumeDescriptions && Array.isArray(data.costumeDescriptions)) {
           const updatedCostumes = character.costumes!.map((cos, i) => ({
             ...cos,
@@ -589,17 +587,32 @@ const CharacterSettings = ({
             costumes: updatedCostumes,
           });
         } else {
-          // Fallback: just set base description
           updateCharacterAsync(id, { description: data.description || "" });
         }
         toast({ title: "识别成功", description: `已为「${character.name}」生成角色描述及 ${character.costumes!.length} 套服装描述` });
       } else {
-        // No costumes — original behavior
+        // No costumes — discover costume variants from script
         const data = await invokeStreamingFunction("generate-character-description", {
           characterName: character.name, script, model: decomposeModel,
+          discoverCostumes: true,
         });
-        updateCharacterAsync(id, { description: data.description || "" });
-        toast({ title: "识别成功", description: `已为「${character.name}」生成角色描述` });
+        const desc = data.description || "";
+        // Check if AI discovered costume variants
+        if (data.discoveredCostumes && Array.isArray(data.discoveredCostumes) && data.discoveredCostumes.length >= 2) {
+          const newCostumes: CostumeSetting[] = data.discoveredCostumes.map((dc: any) => ({
+            id: crypto.randomUUID(),
+            label: dc.label || "未命名",
+            description: dc.description || "",
+            isAIGenerated: false,
+          }));
+          updateCharacterAsync(id, { description: desc, costumes: newCostumes, activeCostumeId: newCostumes[0]?.id });
+          // Auto-expand costume panel
+          setExpandedCostumeCharIds(prev => { const next = new Set(prev); next.add(id); return next; });
+          toast({ title: "识别成功", description: `已为「${character.name}」生成描述，并发现 ${newCostumes.length} 套服装变体` });
+        } else {
+          updateCharacterAsync(id, { description: desc });
+          toast({ title: "识别成功", description: `已为「${character.name}」生成角色描述` });
+        }
       }
     } catch (e: any) {
       console.error("Auto describe character error:", e);
@@ -621,14 +634,29 @@ const CharacterSettings = ({
       toast({ title: "缺少剧本内容", description: "请先在第一步输入剧本", variant: "destructive" });
       return;
     }
+    const hasTimeVariants = scene.timeVariants && scene.timeVariants.length > 0;
     addTask(id, "sceneDesc");
     setGeneratingDescIds(prev => new Set(prev).add(id));
     try {
       const data = await invokeStreamingFunction("generate-scene-description", {
         sceneName: scene.name, script, model: decomposeModel,
+        discoverTimeVariants: !hasTimeVariants,
       });
-      updateSceneAsync(id, { description: data.description || "" });
-      toast({ title: "识别成功", description: `已为「${scene.name}」生成场景描述` });
+      const desc = data.description || "";
+      if (!hasTimeVariants && data.discoveredTimeVariants && Array.isArray(data.discoveredTimeVariants) && data.discoveredTimeVariants.length >= 2) {
+        const newVariants: TimeVariantSetting[] = data.discoveredTimeVariants.map((tv: any) => ({
+          id: crypto.randomUUID(),
+          label: tv.label || "未命名",
+          description: tv.description || "",
+          isAIGenerated: false,
+        }));
+        updateSceneAsync(id, { description: desc, timeVariants: newVariants, activeTimeVariantId: newVariants[0]?.id });
+        setExpandedTimeVariantSceneIds(prev => { const next = new Set(prev); next.add(id); return next; });
+        toast({ title: "识别成功", description: `已为「${scene.name}」生成描述，并发现 ${newVariants.length} 个时间变体` });
+      } else {
+        updateSceneAsync(id, { description: desc });
+        toast({ title: "识别成功", description: `已为「${scene.name}」生成场景描述` });
+      }
     } catch (e: any) {
       console.error("Auto describe error:", e);
       const fe = friendlyError(e);

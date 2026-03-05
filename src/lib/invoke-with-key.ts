@@ -152,6 +152,7 @@ This rule overrides any other inference. Ethnicity must be explicitly stated in 
 
 export interface InvokeOptions {
   onProgress?: (partialData: any) => void;
+  abortSignal?: AbortSignal;
 }
 
 export async function invokeFunction<T = any>(
@@ -206,7 +207,7 @@ export function buildFetchBodyWithKeys(body: Record<string, unknown>) {
 async function routeFunction(functionName: string, body: any, options?: InvokeOptions): Promise<any> {
   switch (functionName) {
     case "extract-characters-scenes": return localExtract(body);
-    case "script-decompose": return localDecompose(body, options?.onProgress);
+    case "script-decompose": return localDecompose(body, options?.onProgress, options?.abortSignal);
     case "generate-character": return localGenerateCharacter(body);
     case "generate-scene": return localGenerateScene(body);
     case "generate-storyboard": return localGenerateStoryboard(body);
@@ -338,7 +339,7 @@ async function localExtract(body: any) {
   return { characters: parsed.characters || [], sceneSettings: parsed.sceneSettings || [] };
 }
 
-async function localDecompose(body: any, onProgress?: (partialData: any) => void) {
+async function localDecompose(body: any, onProgress?: (partialData: any) => void, abortSignal?: AbortSignal) {
   const { script, systemPrompt, model: requestedModel, costumeInfo } = body;
   if (!script) throw new Error("缺少剧本内容");
 
@@ -374,6 +375,17 @@ async function localDecompose(body: any, onProgress?: (partialData: any) => void
     }
 
     for (let epIdx = 0; epIdx < episodes.length; epIdx++) {
+      // Check abort before starting each chunk
+      if (abortSignal?.aborted) {
+        // Mark remaining chunks as cancelled
+        for (let i = epIdx; i < episodes.length; i++) {
+          if (onProgress) {
+            onProgress({ scenes: allScenes, chunkIndex: i, totalChunks: episodes.length, status: "cancelled", failedChunks });
+          }
+        }
+        break;
+      }
+
       const ep = episodes[epIdx];
       console.log(`[localDecompose] 正在拆解第 ${epIdx + 1}/${episodes.length} 集...`);
       const epPrefix = episodes.length > 1 ? `${epIdx + 1}-` : "";
@@ -386,11 +398,15 @@ async function localDecompose(body: any, onProgress?: (partialData: any) => void
       try {
         const userText = `${prompt}\n\n---\n\n以下是第${epIdx + 1}集剧本：\n\n${ep}${costumeContext}`;
 
-        const chunkSignal = AbortSignal.timeout(5 * 60_000);
+        // Combine abort signal with per-chunk timeout
+        const chunkTimeout = AbortSignal.timeout(5 * 60_000);
+        const combinedSignal = abortSignal
+          ? AbortSignal.any([abortSignal, chunkTimeout])
+          : chunkTimeout;
         const data = await callGemini(model,
           [{ role: "user", parts: [{ text: userText }] }],
           { temperature: 0.3, maxOutputTokens: 65536 },
-          chunkSignal,
+          combinedSignal,
         );
 
         const resultText = extractText(data);

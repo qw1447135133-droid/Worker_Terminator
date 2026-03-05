@@ -693,8 +693,8 @@ const CharacterSettings = ({
     const totalSceneTasks = sceneSettingsRef.current.filter(s => String(s.name || "").trim()).reduce((sum, s) => {
       const hasTimeVariants = s.timeVariants && s.timeVariants.length > 0;
       if (hasTimeVariants) {
-        const tvCount = s.timeVariants!.filter(tv => tv.label?.trim() && !tv.imageUrl).length;
-        return sum + 1 + tvCount; // desc + time variant imgs (no base img)
+        const tvCount = s.timeVariants!.filter(tv => tv.label?.trim()).length;
+        return sum + 1 + tvCount; // desc + all time variant imgs
       }
       return sum + 2; // desc + base img
     }, 0);

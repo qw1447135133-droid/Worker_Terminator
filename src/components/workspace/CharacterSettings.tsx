@@ -189,8 +189,7 @@ const CharacterSettings = ({
       try {
       let successCount = 0;
       let failCount = 0;
-      let anchorImageUrl: string | undefined; // Set after first costume succeeds
-      let isFirstGenerated = false; // tracks whether we've generated the anchor
+      let anchorImageUrl: string | undefined;
 
       for (let cosIdx = 0; cosIdx < costumes.length; cosIdx++) {
         const cos = costumes[cosIdx];
@@ -204,7 +203,7 @@ const CharacterSettings = ({
         addTask(cosTaskKey, "charImg");
         setGeneratingCharImgIds((prev) => new Set(prev).add(cosTaskKey));
 
-        const isFirstCostume = !isFirstGenerated;
+        const isFirstCostume = cosIdx === 0;
         let succeeded = false;
 
         try {
@@ -227,7 +226,6 @@ const CharacterSettings = ({
           prewarmThumbnail(rawUrl);
           if (isFirstCostume) {
             anchorImageUrl = rawUrl;
-            isFirstGenerated = true;
           }
           // Show image immediately with raw URL (may be base64)
           localCostumes = localCostumes.map(cc => {
@@ -371,7 +369,7 @@ const CharacterSettings = ({
         let successCount = 0;
         let failCount = 0;
         let anchorImageUrl: string | undefined;
-        let isFirstGenerated = false;
+        
 
         for (let vIdx = 0; vIdx < variants.length; vIdx++) {
           const tv = variants[vIdx];
@@ -385,7 +383,7 @@ const CharacterSettings = ({
           addTask(tvTaskKey, "sceneImg");
           setGeneratingSceneImgIds((prev) => new Set(prev).add(tvTaskKey));
 
-          const isFirstVariant = !isFirstGenerated;
+          const isFirstVariant = vIdx === 0;
           let succeeded = false;
 
           try {
@@ -408,7 +406,6 @@ const CharacterSettings = ({
             prewarmThumbnail(rawUrl);
             if (isFirstVariant) {
               anchorImageUrl = rawUrl;
-              isFirstGenerated = true;
             }
             localVariants = localVariants.map(v => {
               if (v.id !== tv.id) return v;
@@ -819,10 +816,10 @@ const CharacterSettings = ({
       const costumesToGen = latestChar.costumes!.filter(cos => cos.label?.trim());
       // Use localCostumes pattern to prevent React re-renders from resetting ref mid-loop
       let localCostumes = [...(latestChar?.costumes || []).map(cc => ({ ...cc }))];
-      // Anchor logic: prefer base image; if unavailable, first successful costume becomes anchor
-      let costumeAnchorUrl: string | undefined = latestChar?.imageUrl || undefined;
-      let isFirstCostumeGenerated = !!costumeAnchorUrl;
-      for (const cos of costumesToGen) {
+      // Anchor logic: first costume generates without reference; subsequent costumes use first's image
+      let costumeAnchorUrl: string | undefined;
+      for (let cosIdx = 0; cosIdx < costumesToGen.length; cosIdx++) {
+        const cos = costumesToGen[cosIdx];
         if (autoDetectAbortRef.current) return;
         updateCharacterAsync(c.id, { activeCostumeId: cos.id });
         if (autoDetectAbortRef.current) return;
@@ -832,7 +829,7 @@ const CharacterSettings = ({
         addTask(cosTaskKey, "charImg");
         setGeneratingCharImgIds((prev) => new Set(prev).add(cosTaskKey));
         let cosImgOk = false;
-        const isFirstCostume = !isFirstCostumeGenerated;
+        const isFirstCostume = cosIdx === 0;
         try {
           const freshCos = localCostumes.find(cc => cc.id === cos.id);
           const combinedDesc = `${c.name}，${freshCos?.label || cos.label}：${freshCos?.description || cos.description || latestChar?.description || desc}`;
@@ -853,7 +850,6 @@ const CharacterSettings = ({
           // Set anchor from first successful costume if no base image
           if (isFirstCostume) {
             costumeAnchorUrl = rawUrl;
-            isFirstCostumeGenerated = true;
           }
           // Update local copy to prevent stale reads in subsequent iterations
           localCostumes = localCostumes.map(cc => {
@@ -970,9 +966,9 @@ const CharacterSettings = ({
       setGeneratingSceneImgIds((prev) => new Set(prev).add(s.id));
       const variantsToGen = latestScene.timeVariants!.filter(tv => tv.label?.trim());
       let localVariants = [...(latestScene?.timeVariants || []).map(v => ({ ...v }))];
-      let tvAnchorUrl: string | undefined = latestScene?.imageUrl || undefined;
-      let isFirstTvGenerated = !!tvAnchorUrl;
-      for (const tv of variantsToGen) {
+      let tvAnchorUrl: string | undefined;
+      for (let tvIdx = 0; tvIdx < variantsToGen.length; tvIdx++) {
+        const tv = variantsToGen[tvIdx];
         if (autoDetectAbortRef.current) return;
         updateSceneAsync(s.id, { activeTimeVariantId: tv.id });
         if (autoDetectAbortRef.current) return;
@@ -982,7 +978,7 @@ const CharacterSettings = ({
         addTask(tvTaskKey, "sceneImg");
         setGeneratingSceneImgIds((prev) => new Set(prev).add(tvTaskKey));
         let tvImgOk = false;
-        const isFirstVariant = !isFirstTvGenerated;
+        const isFirstVariant = tvIdx === 0;
         try {
           const freshTv = localVariants.find(v => v.id === tv.id);
           const combinedDesc = `${s.name}，${freshTv?.label || tv.label}：${freshTv?.description || tv.description || latestScene?.description || desc}`;
@@ -1002,7 +998,6 @@ const CharacterSettings = ({
           prewarmThumbnail(rawUrl);
           if (isFirstVariant) {
             tvAnchorUrl = rawUrl;
-            isFirstTvGenerated = true;
           }
           localVariants = localVariants.map(v => {
             if (v.id !== tv.id) return v;
@@ -1255,13 +1250,23 @@ const CharacterSettings = ({
               toast({ title: "请先填写服装名称", variant: "destructive" });
               return;
             }
+            const costumes = c.costumes || [];
+            const firstCostume = costumes[0];
+            const isFirst = firstCostume?.id === costumeId;
+            // Non-first costumes must reference the first costume's image
+            if (!isFirst) {
+              const firstImageUrl = firstCostume?.imageUrl;
+              if (!firstImageUrl) {
+                toast({ title: "请先生成首张图片", description: "后续服装图需要以首套服装图作为参考", variant: "destructive" });
+                return;
+              }
+            }
+            const referenceImageUrl = isFirst ? undefined : (firstCostume?.imageUrl || undefined);
             const costumeTaskKey = `costume-${costumeId}`;
             addTask(costumeTaskKey, "charImg");
             setGeneratingCharImgIds((prev) => new Set(prev).add(costumeTaskKey));
             try {
               const combinedDesc = `${c.name}，${costume.label}：${costume.description || c.description}`;
-              // Use base character image or first successful costume image as reference anchor
-              const referenceImageUrl = c.imageUrl || (c.costumes || []).find(cos => cos.id !== costumeId && cos.imageUrl)?.imageUrl || undefined;
               const { data, error } = await withTimeout(
                 invokeFunction("generate-character", { name: `${c.name} - ${costume.label}`, description: combinedDesc, style: artStyle, model: charImageModel, referenceImageUrl }),
                 CHAR_IMAGE_TIMEOUT_MS,
@@ -1612,12 +1617,23 @@ const CharacterSettings = ({
               toast({ title: "请先填写时间名称", variant: "destructive" });
               return;
             }
+            const variants = s.timeVariants || [];
+            const firstVariant = variants[0];
+            const isFirst = firstVariant?.id === tvId;
+            // Non-first variants must reference the first variant's image
+            if (!isFirst) {
+              const firstImageUrl = firstVariant?.imageUrl;
+              if (!firstImageUrl) {
+                toast({ title: "请先生成首张图片", description: "后续时间变体图需要以首个变体图作为参考", variant: "destructive" });
+                return;
+              }
+            }
+            const referenceImageUrl = isFirst ? undefined : (firstVariant?.imageUrl || undefined);
             const tvTaskKey = `timevariant-${tvId}`;
             addTask(tvTaskKey, "sceneImg");
             setGeneratingSceneImgIds((prev) => new Set(prev).add(tvTaskKey));
             try {
               const combinedDesc = `${s.name}，${tv.label}：${tv.description || s.description}`;
-              const referenceImageUrl = s.imageUrl || (s.timeVariants || []).find(v => v.id !== tvId && v.imageUrl)?.imageUrl || undefined;
               const { data, error } = await withTimeout(
                 invokeFunction("generate-scene", { name: `${s.name} - ${tv.label}`, description: combinedDesc, style: artStyle, model: charImageModel, referenceImageUrl }),
                 SCENE_IMAGE_TIMEOUT_MS,

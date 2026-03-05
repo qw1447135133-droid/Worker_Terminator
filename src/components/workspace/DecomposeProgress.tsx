@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { RotateCw, CheckCircle2, XCircle, Loader2 } from "lucide-react";
@@ -12,7 +13,54 @@ export interface ChunkStatus {
 interface DecomposeProgressProps {
   chunks: ChunkStatus[];
   onRetryChunk: (chunkIndex: number) => void;
-  isRetrying?: number | null; // index of chunk currently retrying
+  isRetrying?: number | null;
+}
+
+/**
+ * Animated progress that creeps toward the real value,
+ * slowing down as it gets closer (eased fake progress).
+ */
+function useAnimatedProgress(realPercent: number, hasProcessing: boolean) {
+  const [display, setDisplay] = useState(realPercent);
+  const rafRef = useRef<number>();
+  const lastTimeRef = useRef(performance.now());
+
+  useEffect(() => {
+    // If nothing is processing, snap to real value
+    if (!hasProcessing) {
+      setDisplay(realPercent);
+      return;
+    }
+
+    lastTimeRef.current = performance.now();
+
+    const tick = (now: number) => {
+      const dt = (now - lastTimeRef.current) / 1000; // seconds
+      lastTimeRef.current = now;
+
+      setDisplay(prev => {
+        if (prev >= realPercent) return realPercent;
+
+        const gap = realPercent - prev;
+        // Base speed ~8%/s, decays as gap shrinks (min 0.3%/s)
+        const speed = Math.max(0.3, gap * 0.15) * 8;
+        const next = prev + speed * dt;
+        return Math.min(next, realPercent);
+      });
+
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [realPercent, hasProcessing]);
+
+  // Snap up if real jumps past display
+  useEffect(() => {
+    setDisplay(prev => (realPercent > prev ? prev : realPercent));
+  }, [realPercent]);
+
+  return Math.round(display);
 }
 
 const DecomposeProgress = ({ chunks, onRetryChunk, isRetrying }: DecomposeProgressProps) => {
@@ -20,8 +68,10 @@ const DecomposeProgress = ({ chunks, onRetryChunk, isRetrying }: DecomposeProgre
 
   const done = chunks.filter(c => c.status === "done").length;
   const failed = chunks.filter(c => c.status === "failed").length;
+  const processing = chunks.some(c => c.status === "processing");
   const total = chunks.length;
-  const percent = Math.round((done / total) * 100);
+  const realPercent = Math.round((done / total) * 100);
+  const percent = useAnimatedProgress(realPercent, processing);
 
   return (
     <div className="rounded-lg border border-border bg-card p-4 space-y-3">

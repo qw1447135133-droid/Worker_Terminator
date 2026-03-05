@@ -383,10 +383,16 @@ const Workspace = () => {
           }
         };
 
+        // Build costume info for Phase 2
+        const costumeInfo = autoCharacters
+          .filter(c => c.costumes && c.costumes.length >= 2)
+          .map(c => ({ name: c.name, costumes: c.costumes!.map(cos => ({ label: cos.label, description: cos.description })) }));
+
         const { data: decomposeData, error: decomposeError } = await invokeFunction("script-decompose", {
           script,
           systemPrompt,
           model: decomposeModel,
+          costumeInfo: costumeInfo.length > 0 ? costumeInfo : undefined,
         }, { onProgress: handleDecomposeProgress, abortSignal: controller.signal });
         if (decomposeError) throw decomposeError;
 

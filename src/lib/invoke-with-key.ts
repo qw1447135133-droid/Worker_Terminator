@@ -287,12 +287,13 @@ async function localExtract(body: any) {
         console.warn(`[localExtract] 过滤掉被误归为角色的场景: "${name}"`);
         return false;
       }
-      // Heuristic: if the name contains no letter characters and looks like a location
-      // (e.g. contains 室/厅/场/区/城/洞/林/山/海/湖/河/路/街/馆/院/楼/基地/总部/废墟)
-      const locationKeywords = /[室厅场区城洞林山海湖河路街馆院楼墟墟基地总部办公遗迹星球飞船空间站]/;
-      if (locationKeywords.test(name) && !bracketNames.has(name)) {
+      // Heuristic: if name looks like a pure location (ends with location suffixes)
+      // Use multi-char or end-of-string anchored patterns to avoid false positives like "敌船船长"
+      const locationSuffixes = /(办公室|实验室|会议室|休息室|控制室|大厅|走廊|基地|总部|废墟|遗迹|空间站|飞船|星球|广场|码头|港口|机场|车站|公寓|医院|学校|教堂|监狱|工厂|仓库|酒吧|餐厅|咖啡馆|修车厂|拍卖[会行]|博物馆|图书馆|甲板|沙滩|海滩|丛林|悬崖|深潭|岩壁|巷道?|街道)[\s\-/]*[\u4e00-\u9fff]*$/;
+      const locationPrefixes = /^(第.+集|EP\s*\d|场景|分镜|片段)/i;
+      const isLikelyLocation = (locationSuffixes.test(name) || locationPrefixes.test(name)) && !bracketNames.has(name);
+      if (isLikelyLocation) {
         console.warn(`[localExtract] 过滤掉疑似场景名的角色: "${name}"`);
-        // Move to sceneSettings instead
         if (!parsed.sceneSettings) parsed.sceneSettings = [];
         parsed.sceneSettings.push({ name, description: c.description || "" });
         return false;

@@ -1020,6 +1020,9 @@ const Workspace = () => {
                 </pre>
               </details>
             )}
+            {decomposeChunks.length > 1 && (
+              <DecomposeProgress chunks={decomposeChunks} onRetryChunk={handleRetryChunk} isRetrying={retryingChunk} />
+            )}
             {scenes.length > 0 && (
               <SceneList scenes={scenes} onScenesChange={setScenes} onNext={() => setCurrentStep(2)} characters={characters} />
             )}

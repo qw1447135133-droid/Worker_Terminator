@@ -814,6 +814,8 @@ const CharacterSettings = ({
       }
 
       // --- Has costumes: skip base image, generate all costume images directly ---
+      // Add character-level generating flag so the main button spins
+      setGeneratingCharImgIds((prev) => new Set(prev).add(c.id));
       const costumesToGen = latestChar.costumes!.filter(cos => cos.label?.trim());
       // Use localCostumes pattern to prevent React re-renders from resetting ref mid-loop
       let localCostumes = [...(latestChar?.costumes || []).map(cc => ({ ...cc }))];
@@ -893,6 +895,8 @@ const CharacterSettings = ({
           break;
         }
       }
+      // Clear character-level generating flag after all costumes done
+      setGeneratingCharImgIds((prev) => { const next = new Set(prev); next.delete(c.id); return next; });
     };
 
     // Process a single scene: description → image (or time variant images)
@@ -962,6 +966,8 @@ const CharacterSettings = ({
       }
 
       // --- Has time variants: skip base image, generate all time variant images ---
+      // Add scene-level generating flag so the main button spins
+      setGeneratingSceneImgIds((prev) => new Set(prev).add(s.id));
       const variantsToGen = latestScene.timeVariants!.filter(tv => tv.label?.trim());
       let localVariants = [...(latestScene?.timeVariants || []).map(v => ({ ...v }))];
       let tvAnchorUrl: string | undefined = latestScene?.imageUrl || undefined;
@@ -1034,6 +1040,8 @@ const CharacterSettings = ({
           break;
         }
       }
+      // Clear scene-level generating flag after all variants done
+      setGeneratingSceneImgIds((prev) => { const next = new Set(prev); next.delete(s.id); return next; });
     };
 
     // Launch all tasks in parallel (concurrency controlled by semaphores)

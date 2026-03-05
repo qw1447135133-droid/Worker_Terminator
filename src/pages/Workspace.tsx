@@ -372,6 +372,7 @@ const Workspace = () => {
       } catch (e: any) {
         // Ignore abort errors (user cancelled)
         if (e?.name === "AbortError" || e?.message?.includes("aborted")) {
+          isAnalyzingRef.current = false;
           setIsAnalyzing(false);
           return;
         }

@@ -107,8 +107,6 @@ const DecomposeProgress = ({ chunks, onRetryChunk, isRetrying }: DecomposeProgre
   const percent = useAnimatedProgress(ceilPercent, floorPercent, processing);
 
   const isComplete = total > 1 && done === total && failed === 0;
-
-  const isComplete = done === total && failed === 0;
   const [showCelebration, setShowCelebration] = useState(false);
   const celebratedRef = useRef(false);
 
@@ -123,6 +121,8 @@ const DecomposeProgress = ({ chunks, onRetryChunk, isRetrying }: DecomposeProgre
       celebratedRef.current = false;
     }
   }, [isComplete]);
+
+  if (chunks.length <= 1) return null;
 
   return (
     <div className="rounded-lg border border-border bg-card p-4 space-y-3">

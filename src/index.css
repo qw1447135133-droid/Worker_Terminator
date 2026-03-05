@@ -131,4 +131,16 @@
     0% { left: -60%; }
     100% { left: 160%; }
   }
+
+  /* Completion celebration: green flash pulse */
+  .progress-done > [data-state] > [data-state] {
+    background: hsl(var(--accent)) !important;
+  }
+  .progress-celebrate > [data-state] > [data-state] {
+    animation: celebrate-flash 0.4s ease-in-out 3;
+  }
+  @keyframes celebrate-flash {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 hsl(var(--accent) / 0); }
+    50% { opacity: 0.85; box-shadow: 0 0 12px 4px hsl(var(--accent) / 0.5); }
+  }
 }

@@ -370,7 +370,7 @@ const Workspace = () => {
           script,
           systemPrompt,
           model: decomposeModel,
-        }, { onProgress: handleDecomposeProgress });
+        }, { onProgress: handleDecomposeProgress, abortSignal: controller.signal });
         if (decomposeError) throw decomposeError;
 
         // Store metadata for retries

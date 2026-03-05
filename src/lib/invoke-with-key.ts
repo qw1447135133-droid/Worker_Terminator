@@ -167,6 +167,35 @@ export async function invokeFunction<T = any>(
   }
 }
 
+/** Retry a single failed chunk during decomposition */
+export async function retryDecomposeChunk(
+  chunkIndex: number,
+  episodes: string[],
+  costumeContext: string,
+  model: string,
+  prompt: string,
+): Promise<any[]> {
+  const ep = episodes[chunkIndex];
+  if (!ep) throw new Error(`无效的分块索引: ${chunkIndex}`);
+  const epPrefix = episodes.length > 1 ? `${chunkIndex + 1}-` : "";
+  const userText = `${prompt}\n\n---\n\n以下是第${chunkIndex + 1}集剧本：\n\n${ep}${costumeContext}`;
+  const chunkSignal = AbortSignal.timeout(5 * 60_000);
+  const data = await callGemini(model,
+    [{ role: "user", parts: [{ text: userText }] }],
+    { temperature: 0.3, maxOutputTokens: 65536 },
+    chunkSignal,
+  );
+  const resultText = extractText(data);
+  if (!resultText) throw new Error(`第${chunkIndex + 1}集重试失败：AI 未返回内容`);
+  const epScenes = parseDecomposeResult(resultText);
+  for (const scene of epScenes) {
+    if (epPrefix) {
+      scene.segmentLabel = `${epPrefix}${scene.segmentLabel || ''}`;
+    }
+  }
+  return epScenes;
+}
+
 export function buildFetchBodyWithKeys(body: Record<string, unknown>) {
   // No longer needed for Edge Functions, but kept for backward compatibility
   return { ...body };

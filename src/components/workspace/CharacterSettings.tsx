@@ -1424,7 +1424,7 @@ const CharacterSettings = ({
                             value={activeCostume.label}
                             onChange={(e) => updateCostume(activeCostume.id, { label: e.target.value })}
                             placeholder="服装名称（如：护士装、女仆装）"
-                            className="text-xs h-8"
+                            className="text-sm h-8"
                           />
                           <Button
                             variant="ghost"

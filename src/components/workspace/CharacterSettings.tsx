@@ -226,7 +226,6 @@ const CharacterSettings = ({
           prewarmThumbnail(rawUrl);
           if (isFirstCostume) {
             anchorImageUrl = rawUrl;
-            isFirstGenerated = true;
           }
           // Show image immediately with raw URL (may be base64)
           localCostumes = localCostumes.map(cc => {

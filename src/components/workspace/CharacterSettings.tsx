@@ -966,6 +966,8 @@ const CharacterSettings = ({
       }
 
       // --- Has time variants: skip base image, generate all time variant images ---
+      // Add scene-level generating flag so the main button spins
+      setGeneratingSceneImgIds((prev) => new Set(prev).add(s.id));
       const variantsToGen = latestScene.timeVariants!.filter(tv => tv.label?.trim());
       let localVariants = [...(latestScene?.timeVariants || []).map(v => ({ ...v }))];
       let tvAnchorUrl: string | undefined = latestScene?.imageUrl || undefined;

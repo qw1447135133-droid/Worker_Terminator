@@ -21,7 +21,7 @@ export async function callLocalAiApi<T = any>(
   const config = getApiConfig();
   
   // 使用站狐 API 端点
-  const endpoint = config.zhanhuEndpoint || "http://202.90.21.53:13003/v1";
+  const endpoint = config.zhanhuEndpoint || "http://202.90.21.53:13003/v1beta";
   const path = options.path || "/chat/completions";
   const timeout = options.timeout || DEFAULT_TIMEOUT;
 

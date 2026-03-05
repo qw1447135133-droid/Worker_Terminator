@@ -888,9 +888,6 @@ const CharacterSettings = ({
           break;
         }
       }
-      } finally {
-        setGeneratingCharDescIds((prev) => { const next = new Set(prev); next.delete(c.id); return next; });
-      }
     };
 
     // Process a single scene: description → image (or time variant images)

@@ -20,32 +20,33 @@ interface DecomposeProgressProps {
  * Animated progress that creeps toward the real value,
  * slowing down as it gets closer (eased fake progress).
  */
-function useAnimatedProgress(realPercent: number, hasProcessing: boolean) {
-  const [display, setDisplay] = useState(realPercent);
+function useAnimatedProgress(ceilPercent: number, floorPercent: number, hasProcessing: boolean) {
+  const [display, setDisplay] = useState(floorPercent);
   const rafRef = useRef<number>();
   const lastTimeRef = useRef(performance.now());
 
   useEffect(() => {
-    // If nothing is processing, snap to real value
     if (!hasProcessing) {
-      setDisplay(realPercent);
+      setDisplay(floorPercent);
       return;
     }
 
     lastTimeRef.current = performance.now();
 
     const tick = (now: number) => {
-      const dt = (now - lastTimeRef.current) / 1000; // seconds
+      const dt = (now - lastTimeRef.current) / 1000;
       lastTimeRef.current = now;
 
       setDisplay(prev => {
-        if (prev >= realPercent) return realPercent;
-
-        const gap = realPercent - prev;
-        // Base speed ~8%/s, decays as gap shrinks (min 0.3%/s)
+        // Never exceed the ceiling (current processing chunk's upper bound)
+        if (prev >= ceilPercent) return ceilPercent;
+        // Never go below the floor (completed chunks)
+        const base = Math.max(prev, floorPercent);
+        const gap = ceilPercent - base;
+        // Speed decays as gap shrinks — slows near ceiling
         const speed = Math.max(0.3, gap * 0.15) * 8;
-        const next = prev + speed * dt;
-        return Math.min(next, realPercent);
+        const next = base + speed * dt;
+        return Math.min(next, ceilPercent);
       });
 
       rafRef.current = requestAnimationFrame(tick);
@@ -53,12 +54,12 @@ function useAnimatedProgress(realPercent: number, hasProcessing: boolean) {
 
     rafRef.current = requestAnimationFrame(tick);
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [realPercent, hasProcessing]);
+  }, [ceilPercent, floorPercent, hasProcessing]);
 
-  // Snap up if real jumps past display
+  // Snap up when floor rises (chunk completed)
   useEffect(() => {
-    setDisplay(prev => (realPercent > prev ? prev : realPercent));
-  }, [realPercent]);
+    setDisplay(prev => Math.max(prev, floorPercent));
+  }, [floorPercent]);
 
   return Math.round(display);
 }

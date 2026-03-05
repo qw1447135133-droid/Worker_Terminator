@@ -634,12 +634,35 @@ const CharacterSettings = ({
     }
     addTask(id, "sceneDesc");
     setGeneratingDescIds(prev => new Set(prev).add(id));
+    const hasTimeVariants = scene.timeVariants && scene.timeVariants.length > 0;
     try {
-      const data = await invokeStreamingFunction("generate-scene-description", {
-        sceneName: scene.name, script, model: decomposeModel,
-      });
-      updateSceneAsync(id, { description: data.description || "" });
-      toast({ title: "识别成功", description: `已为「${scene.name}」生成场景描述` });
+      if (hasTimeVariants) {
+        // Already has time variants — just describe the base scene
+        const data = await invokeStreamingFunction("generate-scene-description", {
+          sceneName: scene.name, script, model: decomposeModel,
+        });
+        updateSceneAsync(id, { description: data.description || "" });
+        toast({ title: "识别成功", description: `已为「${scene.name}」生成场景描述` });
+      } else {
+        // No time variants — discover them from script
+        const data = await invokeStreamingFunction("generate-scene-description", {
+          sceneName: scene.name, script, discoverTimeVariants: true, model: decomposeModel,
+        });
+        if (data.discoveredTimeVariants && Array.isArray(data.discoveredTimeVariants) && data.discoveredTimeVariants.length >= 2) {
+          const newVariants: TimeVariantSetting[] = data.discoveredTimeVariants.map((tv: any) => ({
+            id: crypto.randomUUID(),
+            label: tv.label || "",
+            description: tv.description || "",
+            isAIGenerated: true,
+          }));
+          updateSceneAsync(id, { description: data.description || "", timeVariants: newVariants });
+          setExpandedTimeVariantSceneIds(prev => { const next = new Set(prev); next.add(id); return next; });
+          toast({ title: "识别成功", description: `已为「${scene.name}」生成场景描述，发现 ${newVariants.length} 个时间变体` });
+        } else {
+          updateSceneAsync(id, { description: data.description || "" });
+          toast({ title: "识别成功", description: `已为「${scene.name}」生成场景描述${data.discoveredTimeVariants?.length === 0 ? "（未发现时间变体）" : ""}` });
+        }
+      }
     } catch (e: any) {
       console.error("Auto describe error:", e);
       const fe = friendlyError(e);

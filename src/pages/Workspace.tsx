@@ -232,29 +232,17 @@ const Workspace = () => {
         const { data: extractData, error: extractError } = await invokeFunction("extract-characters-scenes", { script, model: decomposeModel });
         if (extractError) throw extractError;
 
-        // Process characters from phase 1
-        const aiCharacters: Array<{ name: string; description: string; costumes?: Array<{ label: string; description: string }> }> = extractData.characters || [];
+        // Process characters from phase 1 (no costumes in this phase)
+        const aiCharacters: Array<{ name: string; description: string }> = extractData.characters || [];
         const aiSceneSettings: Array<{ name: string; description: string }> = extractData.sceneSettings || [];
 
-        const autoCharacters: CharacterSetting[] = aiCharacters.map((aiChar) => {
-          const costumes: CostumeSetting[] | undefined = aiChar?.costumes && aiChar.costumes.length > 0
-            ? aiChar.costumes.map((cos) => ({
-                id: crypto.randomUUID(),
-                label: cos.label || "",
-                description: cos.description || "",
-                isAIGenerated: false,
-              }))
-            : undefined;
-          return {
-            id: crypto.randomUUID(),
-            name: aiChar.name,
-            description: aiChar?.description || "",
-            isAIGenerated: false,
-            source: "auto" as const,
-            costumes,
-            activeCostumeId: costumes?.[0]?.id,
-          };
-        });
+        const autoCharacters: CharacterSetting[] = aiCharacters.map((aiChar) => ({
+          id: crypto.randomUUID(),
+          name: aiChar.name,
+          description: aiChar?.description || "",
+          isAIGenerated: false,
+          source: "auto" as const,
+        }));
         setCharacters(autoCharacters);
 
         if (aiSceneSettings.length > 0) {

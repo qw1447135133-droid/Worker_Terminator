@@ -1040,6 +1040,8 @@ const CharacterSettings = ({
           break;
         }
       }
+      // Clear scene-level generating flag after all variants done
+      setGeneratingSceneImgIds((prev) => { const next = new Set(prev); next.delete(s.id); return next; });
     };
 
     // Launch all tasks in parallel (concurrency controlled by semaphores)

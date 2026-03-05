@@ -571,6 +571,7 @@ const CharacterSettings = ({
     try {
       if (hasCostumesToDescribe) {
         // Describe each costume variant individually
+        const costumeLabels = character.costumes!.map(cos => cos.label || "未命名").join("、");
         const data = await invokeStreamingFunction("generate-character-description", {
           characterName: character.name,
           script,
@@ -588,29 +589,17 @@ const CharacterSettings = ({
             costumes: updatedCostumes,
           });
         } else {
+          // Fallback: just set base description
           updateCharacterAsync(id, { description: data.description || "" });
         }
         toast({ title: "识别成功", description: `已为「${character.name}」生成角色描述及 ${character.costumes!.length} 套服装描述` });
       } else {
-        // No costumes — discover costume variants from script
+        // No costumes — original behavior
         const data = await invokeStreamingFunction("generate-character-description", {
-          characterName: character.name, script, discoverCostumes: true, model: decomposeModel,
+          characterName: character.name, script, model: decomposeModel,
         });
-        if (data.discoveredCostumes && Array.isArray(data.discoveredCostumes) && data.discoveredCostumes.length >= 2) {
-          const newCostumes: CostumeSetting[] = data.discoveredCostumes.map((cos: any) => ({
-            id: crypto.randomUUID(),
-            label: cos.label || "",
-            description: cos.description || "",
-            isAIGenerated: true,
-          }));
-          updateCharacterAsync(id, { description: data.description || "", costumes: newCostumes });
-          // Auto-expand costume panel
-          setExpandedCostumeCharIds(prev => { const next = new Set(prev); next.add(id); return next; });
-          toast({ title: "识别成功", description: `已为「${character.name}」生成角色描述，发现 ${newCostumes.length} 套服装变体` });
-        } else {
-          updateCharacterAsync(id, { description: data.description || "" });
-          toast({ title: "识别成功", description: `已为「${character.name}」生成角色描述${data.discoveredCostumes?.length === 0 ? "（未发现服装变体）" : ""}` });
-        }
+        updateCharacterAsync(id, { description: data.description || "" });
+        toast({ title: "识别成功", description: `已为「${character.name}」生成角色描述` });
       }
     } catch (e: any) {
       console.error("Auto describe character error:", e);
@@ -634,35 +623,12 @@ const CharacterSettings = ({
     }
     addTask(id, "sceneDesc");
     setGeneratingDescIds(prev => new Set(prev).add(id));
-    const hasTimeVariants = scene.timeVariants && scene.timeVariants.length > 0;
     try {
-      if (hasTimeVariants) {
-        // Already has time variants — just describe the base scene
-        const data = await invokeStreamingFunction("generate-scene-description", {
-          sceneName: scene.name, script, model: decomposeModel,
-        });
-        updateSceneAsync(id, { description: data.description || "" });
-        toast({ title: "识别成功", description: `已为「${scene.name}」生成场景描述` });
-      } else {
-        // No time variants — discover them from script
-        const data = await invokeStreamingFunction("generate-scene-description", {
-          sceneName: scene.name, script, discoverTimeVariants: true, model: decomposeModel,
-        });
-        if (data.discoveredTimeVariants && Array.isArray(data.discoveredTimeVariants) && data.discoveredTimeVariants.length >= 2) {
-          const newVariants: TimeVariantSetting[] = data.discoveredTimeVariants.map((tv: any) => ({
-            id: crypto.randomUUID(),
-            label: tv.label || "",
-            description: tv.description || "",
-            isAIGenerated: true,
-          }));
-          updateSceneAsync(id, { description: data.description || "", timeVariants: newVariants });
-          setExpandedTimeVariantSceneIds(prev => { const next = new Set(prev); next.add(id); return next; });
-          toast({ title: "识别成功", description: `已为「${scene.name}」生成场景描述，发现 ${newVariants.length} 个时间变体` });
-        } else {
-          updateSceneAsync(id, { description: data.description || "" });
-          toast({ title: "识别成功", description: `已为「${scene.name}」生成场景描述${data.discoveredTimeVariants?.length === 0 ? "（未发现时间变体）" : ""}` });
-        }
-      }
+      const data = await invokeStreamingFunction("generate-scene-description", {
+        sceneName: scene.name, script, model: decomposeModel,
+      });
+      updateSceneAsync(id, { description: data.description || "" });
+      toast({ title: "识别成功", description: `已为「${scene.name}」生成场景描述` });
     } catch (e: any) {
       console.error("Auto describe error:", e);
       const fe = friendlyError(e);
@@ -759,21 +725,10 @@ const CharacterSettings = ({
           }
         } else {
           const data = await invokeStreamingFunction("generate-character-description", {
-            characterName: c.name, script, discoverCostumes: true, model: decomposeModel,
+            characterName: c.name, script, model: decomposeModel,
           });
           desc = data.description || "";
-          if (data.discoveredCostumes && Array.isArray(data.discoveredCostumes) && data.discoveredCostumes.length >= 2) {
-            const newCostumes: CostumeSetting[] = data.discoveredCostumes.map((cos: any) => ({
-              id: crypto.randomUUID(),
-              label: cos.label || "",
-              description: cos.description || "",
-              isAIGenerated: true,
-            }));
-            updateCharacterAsync(c.id, { description: desc, costumes: newCostumes });
-            setExpandedCostumeCharIds(prev => { const next = new Set(prev); next.add(c.id); return next; });
-          } else {
-            updateCharacterAsync(c.id, { description: desc });
-          }
+          updateCharacterAsync(c.id, { description: desc });
         }
         descOk = true;
       } catch (e) {
@@ -920,24 +875,11 @@ const CharacterSettings = ({
       addTask(s.id, "sceneDesc");
       setGeneratingDescIds((prev) => new Set(prev).add(s.id));
       try {
-        const latestS = sceneSettingsRef.current.find((sc) => sc.id === s.id);
-        const alreadyHasVariants = latestS?.timeVariants && latestS.timeVariants.length > 0;
         const data = await invokeStreamingFunction("generate-scene-description", {
-          sceneName: s.name, script, discoverTimeVariants: !alreadyHasVariants, model: decomposeModel,
+          sceneName: s.name, script, model: decomposeModel,
         });
         desc = data.description || "";
-        if (!alreadyHasVariants && data.discoveredTimeVariants && Array.isArray(data.discoveredTimeVariants) && data.discoveredTimeVariants.length >= 2) {
-          const newVariants: TimeVariantSetting[] = data.discoveredTimeVariants.map((tv: any) => ({
-            id: crypto.randomUUID(),
-            label: tv.label || "",
-            description: tv.description || "",
-            isAIGenerated: true,
-          }));
-          updateSceneAsync(s.id, { description: desc, timeVariants: newVariants });
-          setExpandedTimeVariantSceneIds(prev => { const next = new Set(prev); next.add(s.id); return next; });
-        } else {
-          updateSceneAsync(s.id, { description: desc });
-        }
+        updateSceneAsync(s.id, { description: desc });
         descOk = true;
       } catch (e) {
         console.error(`Scene desc "${s.name}" failed:`, e);
@@ -1332,10 +1274,10 @@ const CharacterSettings = ({
                        size="sm"
                        className="shrink-0 gap-1 text-xs"
                        onClick={() => handleAutoDescribeCharacter(c.id)}
-                       disabled={generatingCharDescIds.has(c.id) || generatingCharImgIds.has(c.id) || !String(c.name || "").trim()}
-                      >
-                        {(generatingCharDescIds.has(c.id) || generatingCharImgIds.has(c.id)) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                        自动识别
+                       disabled={generatingCharDescIds.has(c.id) || !String(c.name || "").trim()}
+                     >
+                       {generatingCharDescIds.has(c.id) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                       自动识别
                      </Button>
 
                      {/* Costume toggle button */}
@@ -1688,10 +1630,10 @@ const CharacterSettings = ({
                       size="sm"
                       className="shrink-0 gap-1 text-xs"
                       onClick={() => handleAutoDescribe(s.id)}
-                       disabled={generatingDescIds.has(s.id) || generatingSceneImgIds.has(s.id) || !String(s.name || "").trim()}
-                     >
-                        {(generatingDescIds.has(s.id) || generatingSceneImgIds.has(s.id)) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                        自动识别
+                      disabled={generatingDescIds.has(s.id) || !String(s.name || "").trim()}
+                    >
+                       {generatingDescIds.has(s.id) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                       自动识别
                     </Button>
 
                     {/* Time variant toggle button */}

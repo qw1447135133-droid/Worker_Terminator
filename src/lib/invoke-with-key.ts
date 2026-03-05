@@ -174,10 +174,10 @@ export function buildFetchBodyWithKeys(body: Record<string, unknown>) {
 
 // ===== ROUTER =====
 
-async function routeFunction(functionName: string, body: any): Promise<any> {
+async function routeFunction(functionName: string, body: any, options?: InvokeOptions): Promise<any> {
   switch (functionName) {
     case "extract-characters-scenes": return localExtract(body);
-    case "script-decompose": return localDecompose(body);
+    case "script-decompose": return localDecompose(body, options?.onProgress);
     case "generate-character": return localGenerateCharacter(body);
     case "generate-scene": return localGenerateScene(body);
     case "generate-storyboard": return localGenerateStoryboard(body);

@@ -437,6 +437,7 @@ const Workspace = () => {
         setAnalyzePhase("done");
         setPhase2Info(`成功拆解 ${parsedScenes.length} 个分镜`);
         setPhase2RetryCount(0);
+        clearPhase1Results();
         toast({ title: "拆解完成", description: `成功拆解为 ${parsedScenes.length} 个分镜，识别 ${autoCharacters.length + missingChars.length} 个角色` });
         resetAnalyzing();
         return;

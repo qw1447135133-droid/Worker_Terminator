@@ -1070,6 +1070,17 @@ const Workspace = () => {
               decomposeModel={decomposeModel}
               onDecomposeModelChange={setDecomposeModel}
             />
+            {analyzePhase !== "idle" && (
+              <AnalyzeProgress
+                phase={analyzePhase}
+                phase1Info={phase1Info}
+                phase2Info={phase2Info}
+                phase2RetryCount={phase2RetryCount}
+                phase2MaxRetries={getApiConfig().retryCount ?? 2}
+                onRetryPhase2={handleRetryPhase2}
+                isRetryingPhase2={isAnalyzing && analyzePhase === "phase2"}
+              />
+            )}
             {rawAiOutput && (
               <details className="mb-4">
                 <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground transition-colors select-none">

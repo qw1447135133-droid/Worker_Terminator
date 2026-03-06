@@ -118,8 +118,16 @@ const Workspace = () => {
   const [phase1Info, setPhase1Info] = useState("");
   const [phase2Info, setPhase2Info] = useState("");
   const [phase2RetryCount, setPhase2RetryCount] = useState(0);
-  // Store phase 1 results for phase 2 retry
-  const phase1ResultsRef = useRef<{ autoCharacters: CharacterSetting[]; aiSceneSettings: Array<{ name: string; description: string }> } | null>(null);
+  // Store phase 1 results for phase 2 retry — persisted to localStorage
+  const PHASE1_LS_KEY = "phase1-results";
+  const phase1ResultsRef = useRef<{ autoCharacters: CharacterSetting[]; aiSceneSettings: Array<{ name: string; description: string }> } | null>(
+    (() => { try { const raw = localStorage.getItem(PHASE1_LS_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; } })()
+  );
+  const savePhase1Results = (data: typeof phase1ResultsRef.current) => {
+    phase1ResultsRef.current = data;
+    try { if (data) localStorage.setItem(PHASE1_LS_KEY, JSON.stringify(data)); else localStorage.removeItem(PHASE1_LS_KEY); } catch { /* ignore */ }
+  };
+  const clearPhase1Results = () => { phase1ResultsRef.current = null; try { localStorage.removeItem(PHASE1_LS_KEY); } catch { /* ignore */ } };
 
   const { createProject, saveProject, loadProject, setProjectId, getProjectId } = useSmartPersistence();
 
@@ -429,6 +437,7 @@ const Workspace = () => {
         setAnalyzePhase("done");
         setPhase2Info(`成功拆解 ${parsedScenes.length} 个分镜`);
         setPhase2RetryCount(0);
+        clearPhase1Results();
         toast({ title: "拆解完成", description: `成功拆解为 ${parsedScenes.length} 个分镜，识别 ${autoCharacters.length + missingChars.length} 个角色` });
         resetAnalyzing();
         return;
@@ -457,6 +466,7 @@ const Workspace = () => {
     setAnalyzePhase("phase1");
     setPhase1Info("正在识别角色与场景...");
     setPhase2Info("");
+    clearPhase1Results();
     setPhase2RetryCount(0);
 
     const resetAnalyzing = () => {
@@ -503,7 +513,7 @@ const Workspace = () => {
       setPhase1Info(`识别 ${autoCharacters.length} 个角色，${aiSceneSettings.length} 个场景`);
 
       // Store phase 1 results for potential phase 2 retry
-      phase1ResultsRef.current = { autoCharacters, aiSceneSettings };
+      savePhase1Results({ autoCharacters, aiSceneSettings });
 
       // ========== Phase 2 ==========
       await runPhase2(autoCharacters, aiSceneSettings, controller, resetAnalyzing);
@@ -544,10 +554,10 @@ const Workspace = () => {
     // Fall back to current state if ref was lost (e.g. after navigation/refresh)
     if (!phase1ResultsRef.current) {
       if (characters.length > 0 || sceneSettings.length > 0) {
-        phase1ResultsRef.current = {
+        savePhase1Results({
           autoCharacters: characters,
           aiSceneSettings: sceneSettings.map(s => ({ name: s.name, description: s.description })),
-        };
+        });
       } else {
         toast({ title: "无法重试", description: "缺少阶段一识别结果，请重新执行完整拆解", variant: "destructive" });
         return;

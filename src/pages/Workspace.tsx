@@ -539,7 +539,21 @@ const Workspace = () => {
   };
 
   const handleRetryPhase2 = async () => {
-    if (!phase1ResultsRef.current || isAnalyzingRef.current) return;
+    if (isAnalyzingRef.current) return;
+
+    // Fall back to current state if ref was lost (e.g. after navigation/refresh)
+    if (!phase1ResultsRef.current) {
+      if (characters.length > 0 || sceneSettings.length > 0) {
+        phase1ResultsRef.current = {
+          autoCharacters: characters,
+          aiSceneSettings: sceneSettings.map(s => ({ name: s.name, description: s.description })),
+        };
+      } else {
+        toast({ title: "无法重试", description: "缺少阶段一识别结果，请重新执行完整拆解", variant: "destructive" });
+        return;
+      }
+    }
+
     isAnalyzingRef.current = true;
     setIsAnalyzing(true);
     setPhase2RetryCount(0);

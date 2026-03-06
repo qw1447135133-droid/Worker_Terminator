@@ -71,6 +71,8 @@ const DEFAULT_CONFIG: ApiConfig = {
   viduEndpoint: "https://api.vidu.cn/ent/v2",
   firstFrameMaxDim: 720,
   firstFrameMaxKB: 800,
+  retryCount: 2,
+  retryDelayMs: 3000,
 };
 
 export function getApiConfig(): ApiConfig {

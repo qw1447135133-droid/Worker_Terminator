@@ -114,6 +114,12 @@ const Workspace = () => {
   const [decomposeChunks, setDecomposeChunks] = useState<ChunkStatus[]>([]);
   const [retryingChunk, setRetryingChunk] = useState<number | null>(null);
   const lastDecomposeMetaRef = useRef<{ episodes: string[]; costumeContext: string; model: string; prompt: string } | null>(null);
+  const [analyzePhase, setAnalyzePhase] = useState<AnalyzePhase>("idle");
+  const [phase1Info, setPhase1Info] = useState("");
+  const [phase2Info, setPhase2Info] = useState("");
+  const [phase2RetryCount, setPhase2RetryCount] = useState(0);
+  // Store phase 1 results for phase 2 retry
+  const phase1ResultsRef = useRef<{ autoCharacters: CharacterSetting[]; aiSceneSettings: Array<{ name: string; description: string }> } | null>(null);
 
   const { createProject, saveProject, loadProject, setProjectId, getProjectId } = useSmartPersistence();
 

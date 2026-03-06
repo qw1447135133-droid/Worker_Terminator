@@ -524,6 +524,42 @@ const Settings = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* 网络重试 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">网络重试</CardTitle>
+              <CardDescription>代理请求失败时的自动重试策略</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label className="text-sm">最大重试次数</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={5}
+                  step={1}
+                  value={config.retryCount ?? 2}
+                  onChange={(e) => setConfig((p) => ({ ...p, retryCount: Number(e.target.value) || 0 }))}
+                  className="mt-1 w-40 font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground mt-1">0 表示不重试，最大 5 次</p>
+              </div>
+              <div>
+                <Label className="text-sm">重试间隔（毫秒）</Label>
+                <Input
+                  type="number"
+                  min={500}
+                  max={30000}
+                  step={500}
+                  value={config.retryDelayMs ?? 3000}
+                  onChange={(e) => setConfig((p) => ({ ...p, retryDelayMs: Number(e.target.value) || 3000 }))}
+                  className="mt-1 w-40 font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground mt-1">每次重试前等待的时间，范围 500–30000ms</p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* 说明 */}

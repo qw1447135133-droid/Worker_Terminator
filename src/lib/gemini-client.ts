@@ -46,8 +46,8 @@ export async function proxiedFetch(
   }
 
   // Proxy mode: route through Edge Function with retry on transient network errors
-  const MAX_RETRIES = 2;
-  const RETRY_DELAY_MS = 3000;
+  const MAX_RETRIES = config.retryCount ?? 2;
+  const RETRY_DELAY_MS = config.retryDelayMs ?? 3000;
 
   const doProxyFetch = () => {
     const proxyHeaders: Record<string, string> = {
